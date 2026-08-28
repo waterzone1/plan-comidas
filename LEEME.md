@@ -65,27 +65,33 @@ cuatro guarniciones lo usan y el resto quedaba en el freezer.
 Si cambiás el catálogo de guarniciones, las cantidades hay que recalcularlas:
 son un punto fijo entre lo que se compra y lo que el generador elige.
 
-## La pantalla de Compras
+## Compras e inventario
 
-Una sola pantalla para las tres compras. Arriba se elige cuál se está
-haciendo (semanal, hojas del miércoles, alacena) y abajo aparece todo junto,
-agrupado por comercio en el orden en que se recorren los locales.
+El inventario es un **stock que corre**: cada compra aceptada suma, y las
+comidas del plan van restando a medida que pasan. No hace falta confirmar
+ninguna comida: se descuenta solo.
 
-Cada renglón se toca para cambiar de estado:
+La pantalla de Compras muestra, de cada cosa, **lo que falta para volver a
+tenerla completa**, agrupado por comercio en el orden en que se recorren los
+locales. Lo que ya está completo aparece apagado, con un punto y el texto
+"tenés tanto".
 
-| Estado | Qué significa |
-|---|---|
-| sin marcar | todavía no lo compré |
-| ✓ | lo compré: entra al inventario con esa cantidad |
-| ✕ | no lo conseguí: **esto es lo único que cambia el plan de la semana** |
+- Un toque en el cuadrito marca **lo compré**; otro, **no lo conseguí**; otro
+  lo deja sin marcar.
+- La cantidad que aparece es la que falta. Si comprás otra, se escribe y entra
+  esa.
+- Cada sección tiene **Marcar todo**.
+- **Aceptar y sumar al inventario** es lo que hace entrar todo lo marcado.
+  Hasta ese momento nada se toca.
+- **Copiar lo que falta** copia solo los renglones pendientes, sin lo que ya
+  tenés ni lo que ya marcaste.
 
-La cantidad de cada renglón se puede editar. Si comprás de más o de menos,
-escribís el número y entra ese. Cada sección tiene un botón para marcar todo
-de una.
+Ejemplo: comés el almuerzo del lunes (bolognesa con fideos). El inventario
+descuenta 200 g de picada, 58 g de fideos y la verdura de la guarnición, y
+esos renglones vuelven a aparecer en Compras con exactamente esa cantidad.
 
-No hay botón de guardar: marcar ya carga el inventario. El inventario refleja
-lo que confirmaste, no lo que la lista suponía; el plan, en cambio, nunca
-depende de que marques nada.
+Lo único de la compra que cambia el plan de la semana es lo que marcás como
+**no lo conseguí**. Comprar o no comprar nunca mueve los platos.
 
 ## Estructura
 

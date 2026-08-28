@@ -120,8 +120,7 @@ const App = (() => {
   vista.addEventListener('change', e => {
     const inp = e.target.closest('[data-act="cant"]');
     if (!inp) return;
-    const f = inp.closest('.fila');
-    Estado.setCantidad(f.dataset.tipo, f.dataset.clave, f.dataset.item, inp.value);
+    Estado.setCantidad(inp.closest('.fila').dataset.item, inp.value);
     refrescar();
   });
 
@@ -141,41 +140,36 @@ const App = (() => {
       return;
     }
 
-    // --- pantalla de compras ---
-    const chip = t.closest('[data-fuente]');
-    if (chip) {
-      Estado.tildar('fuentes', chip.dataset.fuente, !chip.classList.contains('on'));
-      render();
-      return;
-    }
-
     const btn = t.closest('[data-act]');
     if (!btn) return;
     const act = btn.dataset.act;
 
+    if (act === 'ver-falta') { Estado.tildar('compras', 'todo', false); render(); return; }
+    if (act === 'ver-todo')  { Estado.tildar('compras', 'todo', true);  render(); return; }
+
     if (act === 'marcar-item') {
       const f = btn.closest('.fila');
       const estado = f.classList.contains('ok') ? 'no' : f.classList.contains('no') ? '' : 'ok';
-      Estado.marcarItem(f.dataset.tipo, f.dataset.clave, f.dataset.item, estado);
+      Estado.marcarItem(f.dataset.item, estado);
       refrescar();
       return;
     }
     if (act === 'marcar-seccion') {
-      const valor = btn.dataset.valor || '';
-      btn.dataset.filas.split(';').forEach(r => {
-        const [tipo, clave, id] = r.split('|');
-        Estado.marcarItem(tipo, clave, id, valor);
-      });
+      Estado.marcarVarios(btn.dataset.filas.split(';'), btn.dataset.valor || '');
       refrescar();
       return;
     }
-    if (act === 'copiar-compra') { copiar(UI.textoLista()); return; }
+    if (act === 'aceptar-compra') {
+      const r = Inventario.aceptarCompra(UI.semanaDe(new Date()), new Date());
+      refrescar();
+      const cuantos = Object.keys(r.items).length;
+      aviso(cuantos ? cuantos + (cuantos === 1 ? ' ítem sumado' : ' ítems sumados') + ' al inventario'
+                    : 'Anotado lo que no conseguiste');
+      return;
+    }
+    if (act === 'copiar-compra') { copiar(UI.textoFalta()); return; }
     if (act === 'reiniciar-compra') {
-      if (!confirm('Se borra lo marcado de esta compra. El plan no se toca.')) return;
-      const sem = UI.semanaDe(new Date());
-      Estado.limpiarRegistro('semanal', sem);
-      Estado.limpiarRegistro('hojas', sem);
-      Estado.limpiarRegistro('alacena', Inventario.proximaAlacena(new Date()));
+      Estado.limpiarBorrador();
       refrescar();
       return;
     }

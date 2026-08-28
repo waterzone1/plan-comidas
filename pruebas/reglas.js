@@ -163,7 +163,7 @@ Generador.limpiarCache();
 ok(a1 === foto('2026-09-05'), 'el plan es el mismo si no cambian los hechos');
 
 console.log('== faltantes en la compra ==');
-Estado.marcarVarios('semanal', '2026-09-05', ['portobello', 'noquis', 'champinones', 'papa'], 'no');
+Estado.registrarNoConseguido('2026-09-05', ['portobello', 'noquis', 'champinones', 'papa']);
 Generador.limpiarCache();
 const planF = verificarSemana('2026-09-05', 'con faltantes', { tolerancia: 900, peorMax: 300 });
 planF.slots.forEach(s => {
@@ -209,70 +209,89 @@ septimo.setHours(12, 0, 0, 0);
 const planHoy = Generador.planSemana(U.ymd(U.inicioSemana(septimo)));
 ok(U.indiceDia(septimo, planHoy.inicio) === 6, 'el séptimo día es viernes');
 ok(planHoy.slots.filter(s => s.dia === 6).length === 2, 'hay almuerzo y cena sin haber marcado nada');
-const inv = Inventario.estado(planHoy.inicio, septimo);
-ok(inv.items.find(i => i.clave === 'pollo').gastado > 0,
+// se descuenta segun el plan, sin haber confirmado ninguna comida
+Estado.marcarVarios(Inventario.filasCompra(planHoy.inicio, septimo).map(f => f.id), 'ok');
+Inventario.aceptarCompra(planHoy.inicio, U.sumarDias(septimo, -6));
+ok(Inventario.consumido(septimo)['pollo'] > 0,
    'la proteína se descontó según el plan, sin confirmaciones');
-
-console.log('== la despensa arranca vacía ==');
+ok(Inventario.stock(septimo)['pollo'] < Inventario.entradas(septimo)['pollo'],
+   'y el stock quedó por debajo de lo que entró');
 Estado.borrarTodo();
 Generador.limpiarCache();
-const dia1 = U.parse(ARRANQUE);
-const idsAlacena = api.COMPRA_ALACENA.map(i => i.id);
-ok(!Inventario.despensaCargada(), 'sin compra de alacena registrada, la despensa está en cero');
-const despVacia = Inventario.despensa(semUno, dia1);
-ok(despVacia.every(d => d.total === 0 && d.queda === 0), 'ningún ítem de despensa tiene stock inicial');
-ok(despVacia.some(d => d.falta > 0), 'lo que hace falta esta semana aparece como faltante');
 
-Estado.marcarVarios('alacena', api.FECHAS_ALACENA[0], idsAlacena, 'ok');
-ok(Inventario.despensaCargada(), 'al marcar la compra, la despensa se llena');
-const despLlena = Inventario.despensa(semUno, dia1);
-ok(despLlena.find(d => d.clave === 'arroz').total === 500, 'entraron los 500 g de arroz');
-ok(despLlena.find(d => d.clave === 'legumbres').total === 10, 'y las 10 latas de legumbres');
-ok(despLlena.every(d => d.total > 0), 'todos los ítems cargados');
-
-// se carga aunque la fecha prevista todavia no haya llegado
-ok(Inventario.despensaCargada(U.sumarDias(U.parse(api.FECHAS_ALACENA[0]), -3)),
-   'marcada antes de la fecha prevista, igual queda cargada');
-
-// una cantidad distinta manda sobre la sugerida
-Estado.setCantidad('alacena', api.FECHAS_ALACENA[0], 'a_arroz', 1000);
-ok(Inventario.despensa(semUno, dia1).find(d => d.clave === 'arroz').total === 1000,
-   'si cargo otra cantidad, entra esa');
-// y lo que no conseguí no entra
-Estado.marcarItem('alacena', api.FECHAS_ALACENA[0], 'a_atun', 'no');
-ok(Inventario.despensa(semUno, dia1).find(d => d.clave === 'atun').total === 0,
-   'lo marcado como no conseguído no entra');
-
-console.log('== la heladera se llena item por item ==');
+console.log('== el inventario arranca vacío y se llena al aceptar ==');
 Estado.borrarTodo();
 Generador.limpiarCache();
-const invVacio = Inventario.estado(semUno, dia1);
-ok(!Inventario.heladeraCargada(semUno), 'sin nada marcado, la heladera esta vacía');
-ok(invVacio.items.every(i => i.total === 0), 'ningún ítem tiene stock');
-ok(invVacio.items.length > 0, 'igual se listan los ítems que hacen falta');
-ok(Inventario.loQueFalta(semUno, dia1).length > 0, 'todo aparece como faltante');
+const lunes11 = new Date(2026, 7, 31, 11, 0);
+const lunes14 = new Date(2026, 7, 31, 14, 0);
 
-Estado.marcarItem('semanal', semUno, 'pollo', 'ok');
-ok(Inventario.estado(semUno, dia1).items.find(i => i.clave === 'pollo').total === 800,
-   'marcar el pollo carga sus 800 g');
-ok(Inventario.estado(semUno, dia1).items.find(i => i.clave === 'cebolla').total === 0,
-   'y no toca lo que no marqué');
-Estado.setCantidad('semanal', semUno, 'pollo', 1000);
-ok(Inventario.estado(semUno, dia1).items.find(i => i.clave === 'pollo').total === 1000,
-   'si compro de más, entra lo que cargué');
+ok(!Inventario.heladeraCargada(), 'sin compras aceptadas no hay nada');
+const filas0 = Inventario.filasCompra(semUno, lunes11);
+ok(filas0.length > 0, 'la pantalla de compras lista todo lo que hace falta');
+ok(filas0.every(f => !f.lleno), 'al principio no hay nada lleno');
+ok(Inventario.estado(semUno, lunes11).items.every(i => i.queda === 0), 'el inventario está en cero');
 
-// lo único de la compra que cambia el plan es lo que marco como no conseguído
+// marcar todo y aceptar
+Estado.marcarVarios(filas0.map(f => f.id), 'ok');
+const res = Inventario.aceptarCompra(semUno, lunes11);
+ok(Object.keys(res.items).length > 20, 'se aceptaron los ítems marcados', Object.keys(res.items).length);
+ok(Estado.hayEntradas(), 'quedó registrada la entrada');
+ok(!Object.keys(Estado.borrador().estado).length, 'el borrador queda limpio después de aceptar');
+
+const st = Inventario.stock(lunes11);
+ok(st['pollo'] === 800, 'entraron los 800 g de pollo', st['pollo']);
+ok(st['arroz'] === 500, 'y los 500 g de arroz de la alacena', st['arroz']);
+ok(st['legumbres'] === 10, 'y las 10 latas de legumbres', st['legumbres']);
+ok(Inventario.filasCompra(semUno, lunes11).filter(f => !f.lleno).length === 0,
+   'ya no falta nada');
+
+console.log('== las comidas descuentan y la lista se vuelve a marcar sola ==');
+const almuerzo = Generador.planSemana(semUno).slots[0];
+const stDespues = Inventario.stock(lunes14);
+const clave = api.PROTEINAS[almuerzo.grupo].clave;
+ok(stDespues[clave] === st[clave] - 200, 'la proteína del almuerzo se descuenta',
+   clave + ': ' + st[clave] + ' -> ' + stDespues[clave]);
+ok(stDespues[api.BASES[almuerzo.base].clave] < st[api.BASES[almuerzo.base].clave],
+   'y también la base');
+
+const pendientes = Inventario.filasCompra(semUno, lunes14).filter(f => !f.lleno);
+ok(pendientes.length > 0, 'los ítems consumidos vuelven a aparecer en la lista');
+const filaProt = pendientes.find(f => f.nombre.toLowerCase().indexOf(clave) >= 0 ||
+                                      (clave === 'picada' && f.id === 'picada'));
+ok(!!filaProt, 'entre ellos la proteína que se usó');
+ok(filaProt && filaProt.cant === 200, 'con los 200 g que faltan para completar',
+   filaProt && filaProt.cant);
+ok(pendientes.every(f => f.falta > 0), 'todos los que reaparecen tienen faltante real');
+
+// aceptar de nuevo suma sobre lo que ya había
+Estado.marcarVarios([filaProt.id], 'ok');
+Inventario.aceptarCompra(semUno, lunes14);
+ok(Inventario.stock(lunes14)[clave] === st[clave],
+   'al comprarlo otra vez vuelve al nivel de antes');
+
+console.log('== cargar otra cantidad ==');
+Estado.borrarTodo();
+Generador.limpiarCache();
+const f2 = Inventario.filasCompra(semUno, lunes11);
+Estado.marcarItem('pollo', 'ok');
+Estado.setCantidad('pollo', 1000);
+Inventario.aceptarCompra(semUno, lunes11);
+ok(Inventario.stock(lunes11)['pollo'] === 1000, 'si compro de más, entra lo que cargué');
+
+console.log('== lo que no conseguí es lo único que toca el plan ==');
 Estado.borrarTodo();
 Generador.limpiarCache();
 const planLimpio = Generador.planSemana(semUno).slots.map(x => x.guarnicion.id).join(',');
-Estado.marcarItem('semanal', semUno, 'cebolla', 'ok');
+Estado.marcarItem('cebolla', 'ok');
+Inventario.aceptarCompra(semUno, lunes11);
 Generador.limpiarCache();
 ok(Generador.planSemana(semUno).slots.map(x => x.guarnicion.id).join(',') === planLimpio,
-   'marcar algo como comprado no mueve el plan');
-Estado.marcarItem('semanal', semUno, 'champinones', 'no');
+   'comprar algo no mueve el plan');
+Estado.marcarItem('champinones', 'no');
+Inventario.aceptarCompra(semUno, lunes11);
 Generador.limpiarCache();
 ok(!Generador.planSemana(semUno).slots.some(x => x.guarnicion.verduras.indexOf('champi\u00f1ones') >= 0),
-   'marcar algo como no conseguído si lo saca del plan');
+   'marcar que no lo consegui si lo saca del plan');
 Estado.borrarTodo();
 Generador.limpiarCache();
 

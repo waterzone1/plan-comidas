@@ -69,82 +69,113 @@ const Inventario = (() => {
     }).filter(i => i.cant === null || i.cant > 0);
   }
 
-  /* ¿Se marcó algo de la compra de esta semana? */
-  function heladeraCargada(inicio) {
-    return !!Estado.compra(inicio) || !!Estado.hojas(inicio);
+  /* ---------------- el stock ----------------
+     El inventario es lo que entró con las compras aceptadas menos lo que se
+     fueron llevando las comidas que ya pasaron. No depende de confirmar cada
+     comida: se descuenta según el plan. */
+
+  /* Cuánto tendría que haber de cada cosa: la compra de la semana más la
+     reposición del miércoles mas lo que trae un ciclo de alacena. */
+  function objetivos(inicio, ahora) {
+    const obj = {};
+    const sumar = (items) => items.forEach(i => {
+      if (!i.clave || i.cant === null) return;
+      obj[i.clave] = (obj[i.clave] || 0) + i.cant;
+    });
+    sumar(compraDe(inicio));
+    sumar(COMPRA_HOJAS);
+    sumar(COMPRA_ALACENA.filter(i => i.cant !== null));
+    return obj;
   }
 
-  /* Suma al inventario lo que se marcó como comprado, con la cantidad que se
-     haya cargado. Lo que está sin marcar no entra: el inventario refleja lo
-     que confirmé, no lo que la lista suponía. */
-  function sumar(hay, items, registro) {
-    items.forEach(i => {
-      if (!i.clave || i.cant === null) return;
-      if (!(i.clave in hay)) hay[i.clave] = 0;
-      if (!registro || registro.estado[i.id] !== 'ok') return;
-      hay[i.clave] += (i.id in registro.cant) ? Number(registro.cant[i.id]) : i.cant;
+  /* Todo lo que entró con las compras aceptadas hasta ahora. */
+  function entradas(ahora) {
+    ahora = ahora || new Date();
+    const hay = {};
+    Estado.entradas().forEach(e => {
+      if (U.parse(e.fecha) > U.medianoche(ahora)) return;
+      Object.keys(e.items).forEach(k => { hay[k] = (hay[k] || 0) + Number(e.items[k]); });
     });
     return hay;
   }
 
-  /* Lo que entró esta semana, ítem por ítem. */
-  function entradas(inicio) {
-    const hay = {};
-    sumar(hay, compraDe(inicio), Estado.compra(inicio));
-    sumar(hay, COMPRA_HOJAS, Estado.hojas(inicio));
-    return hay;
+  /* Lo que ya se comieron las comidas pasadas, desde la primera compra. */
+  function consumido(ahora) {
+    ahora = ahora || new Date();
+    const gasto = {};
+    const lista = Estado.entradas();
+    if (!lista.length) return gasto;
+    const primera = lista.map(e => e.fecha).sort()[0];
+    let sem = U.inicioSemana(U.parse(primera));
+    if (U.parse(ARRANQUE) > sem) sem = U.inicioSemana(U.parse(ARRANQUE));
+    for (let w = 0; w < 30; w++) {
+      const inicio = U.ymd(U.sumarDias(sem, 7 * w));
+      if (U.parse(inicio) > U.medianoche(ahora)) break;
+      const plan = Generador.planSemana(inicio);
+      plan.slots.forEach(sl => {
+        if (sl.saltado || !yaPaso(sl, ahora)) return;
+        const c = consumo(sl);
+        if (c.proteina) gasto[c.proteina.clave] = (gasto[c.proteina.clave] || 0) + c.proteina.cant;
+        gasto[c.base.clave] = (gasto[c.base.clave] || 0) + c.base.cant;
+        Object.keys(c.verduras).forEach(v => { gasto[v] = (gasto[v] || 0) + c.verduras[v]; });
+      });
+      // merienda: una fruta y 200 ml de leche por cada merienda ya pasada.
+      // Cuenta desde las 17:00, que es cuando se toma.
+      const hoyIdx = U.indiceDia(ahora, inicio);
+      const cuenta = hoyIdx - plan.primerDia + (ahora.getHours() >= 17 ? 1 : 0);
+      const dias = Math.min(7 - plan.primerDia, Math.max(0, cuenta));
+      gasto['fruta'] = (gasto['fruta'] || 0) + dias;
+      gasto['leche'] = (gasto['leche'] || 0) + dias * 0.2;
+    }
+    return gasto;
   }
+
+  /* Cuánto hay de cada cosa ahora mismo. */
+  function stock(ahora) {
+    const hay = entradas(ahora);
+    const gasto = consumido(ahora);
+    const out = {};
+    Object.keys(hay).forEach(k => { out[k] = hay[k]; });
+    Object.keys(gasto).forEach(k => { out[k] = (out[k] || 0) - gasto[k]; });
+    Object.keys(out).forEach(k => { out[k] = Math.max(0, Math.round(out[k] * 10) / 10); });
+    return out;
+  }
+
+  /* La foto completa: cuánto hay, cuánto tendría que haber y cuánto falta. */
+  function situacion(inicio, ahora) {
+    ahora = ahora || new Date();
+    const obj = objetivos(inicio, ahora);
+    const st = stock(ahora);
+    const out = {};
+    Object.keys(obj).forEach(k => {
+      const hay = st[k] || 0;
+      out[k] = { objetivo: obj[k], hay, falta: Math.max(0, Math.round((obj[k] - hay) * 10) / 10) };
+    });
+    return out;
+  }
+
+  function heladeraCargada() { return Estado.hayEntradas(); }
 
   /* Estado del inventario fresco a una fecha dada. */
   function estado(inicio, ahora) {
     ahora = ahora || new Date();
     const plan = Generador.planSemana(inicio);
-    const hay = entradas(inicio);
-    const consumido = {};
-    const pendiente = {};
-
-    plan.slots.forEach(s => {
-      const destino = yaPaso(s, ahora) ? consumido : pendiente;
-      if (s.saltado) return;   // no comí acá: no descuenta
-      const c = consumo(s);
-      if (c.proteina) destino[c.proteina.clave] = (destino[c.proteina.clave] || 0) + c.proteina.cant;
-      destino[c.base.clave] = (destino[c.base.clave] || 0) + c.base.cant;
-      Object.keys(c.verduras).forEach(v => { destino[v] = (destino[v] || 0) + c.verduras[v]; });
-    });
-
-    // merienda: una fruta y 200 ml de leche por día del plan ya transcurrido
-    const diasTotales = 7 - plan.primerDia;
-    const diasPasados = Math.min(diasTotales,
-      Math.max(0, U.indiceDia(ahora, inicio) + 1 - plan.primerDia));
-    consumido['fruta'] = diasPasados;
-    consumido['leche'] = diasPasados * 0.2;
-    pendiente['fruta'] = diasTotales - diasPasados;
-    pendiente['leche'] = (diasTotales - diasPasados) * 0.2;
-
+    const sit = situacion(inicio, ahora);
     const items = [];
     compraDe(inicio).forEach(i => {
       if (!i.clave || i.cant === null) return;
-      const total = hay[i.clave] || 0;
-      const gastado = consumido[i.clave] || 0;
-      const queda = Math.max(0, total - gastado);
-      // la ventana se corre con la compra: en la semana del arranque se compra
-      // el lunes, así que lo perecedero aguanta dos días más
+      const s = sit[i.clave] || { objetivo: i.cant, hay: 0, falta: i.cant };
       const info = VERDURAS[i.clave];
       const corre = info && info.desde > 0 ? 0 : plan.primerDia;
       const vida = info ? info.vida + corre : null;
       items.push({
         id: i.id, nombre: i.nombre, un: i.un, tipo: i.tipo, comercio: i.comercio,
-        clave: i.clave, total, queda, gastado,
-        pendiente: pendiente[i.clave] || 0,
-        falta: Math.max(0, (pendiente[i.clave] || 0) - queda),
-        vida,
-        vence: vida ? U.sumarDias(U.parse(inicio), vida) : null,
-        desde: info ? info.desde + (info.desde > 0 ? 0 : plan.primerDia) : 0,
-        sinStock: total === 0
+        clave: i.clave, total: s.objetivo, queda: s.hay, falta: s.falta,
+        vida, vence: vida ? U.sumarDias(U.parse(inicio), vida) : null,
+        desde: info ? info.desde + (info.desde > 0 ? 0 : plan.primerDia) : 0
       });
     });
-
-    return { items, consumido, pendiente, plan };
+    return { items, plan, situacion: sit };
   }
 
   /* Perecederos: lo que se vence pronto y todavía queda. */
@@ -159,35 +190,28 @@ const Inventario = (() => {
       .sort((a, b) => a.diasRestantes - b.diasRestantes);
   }
 
-  /* Botón 4 — lo que falta: inventario real contra las comidas que quedan. */
+  /* Lo que falta: la diferencia entre lo que hay y lo que tendría que haber,
+     con las comidas que lo necesitan. */
   function loQueFalta(inicio, ahora) {
     ahora = ahora || new Date();
     const est = estado(inicio, ahora);
-    const plan = est.plan;
     const porItem = {};
-
     est.items.forEach(i => {
       if (i.falta > 0.5) porItem[i.clave] = { item: i, cant: i.falta, comidas: [] };
     });
-
-    // despensa: bases secas y latas
-    const desp = despensa(inicio, ahora);
-    desp.forEach(d => {
-      if (d.falta > 0) {
-        porItem[d.clave] = { item: { nombre: d.nombre, un: d.un, comercio: 'almacén' }, cant: d.falta, comidas: [] };
-      }
+    despensa(inicio, ahora).forEach(d => {
+      if (d.falta > 0.5) porItem[d.clave] = {
+        item: { nombre: d.nombre, un: d.un, comercio: 'almacén' }, cant: d.falta, comidas: [] };
     });
-
-    plan.slots.forEach(s => {
+    est.plan.slots.forEach(s => {
       if (s.saltado || yaPaso(s, ahora)) return;
       const c = consumo(s);
-      const etiqueta = U.DIAS_CORTO[s.dia] + ' ' + (s.comida === 'almuerzo' ? 'almuerzo' : 'cena');
+      const etiqueta = U.DIAS_CORTO[s.dia] + ' ' + s.comida;
       const marcar = (k) => { if (porItem[k]) porItem[k].comidas.push(etiqueta); };
       if (c.proteina) marcar(c.proteina.clave);
       marcar(c.base.clave);
       Object.keys(c.verduras).forEach(marcar);
     });
-
     return Object.keys(porItem).map(k => porItem[k]).filter(x => x.cant > 0.5);
   }
 
@@ -214,41 +238,17 @@ const Inventario = (() => {
   /* Antes de la primera compra de alacena registrada la despensa está vacía:
      la app arranca sin nada cargado. */
   function despensaCargada() {
-    return Estado.hayAlgunaAlacena();
+    return Estado.hayEntradas();
   }
 
   function despensa(inicio, ahora) {
     ahora = ahora || new Date();
-    const cargada = despensaCargada(ahora);
-    const desde = U.inicioSemana(U.parse(cicloAlacena(ahora)));
-    const gastado = {};
-    const pendiente = {};
-    for (let w = 0; w < 4; w++) {
-      const sem = U.ymd(U.sumarDias(desde, 7 * w));
-      if (U.parse(sem) > U.sumarDias(U.medianoche(ahora), 7)) break;
-      if (U.sumarDias(U.parse(sem), 6) < U.parse(ARRANQUE)) continue;
-      const plan = Generador.planSemana(sem);
-      plan.slots.forEach(s => {
-        if (s.saltado) return;
-        const b = BASES[s.base];
-        if (!DESPENSA[b.clave]) return;
-        const destino = yaPaso(s, ahora) ? gastado : pendiente;
-        destino[b.clave] = (destino[b.clave] || 0) + b.cant;
-      });
-    }
-    // lo que entró de despensa sale de la compra de alacena registrada
-    const entro = {};
-    if (cargada) sumar(entro, COMPRA_ALACENA, Estado.alacena(cicloAlacena(ahora)));
-
+    const sit = situacion(inicio, ahora);
     return Object.keys(DESPENSA).map(k => {
       const d = DESPENSA[k];
-      const total = entro[k] || 0;
-      const queda = Math.max(0, total - (gastado[k] || 0));
-      return {
-        clave: k, nombre: d.nombre, un: d.un, total,
-        queda, pendiente: pendiente[k] || 0, cargada,
-        falta: Math.max(0, (pendiente[k] || 0) - queda)
-      };
+      const s = sit[k] || { objetivo: 0, hay: 0, falta: 0 };
+      return { clave: k, nombre: d.nombre, un: d.un, total: s.objetivo,
+               queda: s.hay, falta: s.falta, cargada: Estado.hayEntradas() };
     });
   }
 
@@ -288,27 +288,78 @@ const Inventario = (() => {
   /* ¿Ya arrancó el plan? Antes del arranque no hay nada que mostrar. */
   const arrancado = (ahora) => U.medianoche(ahora || new Date()) >= U.parse(ARRANQUE);
 
-  /* Las tres compras que se pueden registrar, con sus ítems y lo que ya se
-     registró de cada una. Es lo que dibuja la pantalla de Compras. */
-  function fuentes(inicio, ahora) {
+  /* Los renglones de la pantalla de compras: cada ítem con lo que falta para
+     volver a tenerlo completo. Lo que ya está lleno queda marcado solo. */
+  function filasCompra(inicio, ahora) {
     ahora = ahora || new Date();
-    const fecha = proximaAlacena(ahora);
-    return [
-      { tipo: 'semanal', clave: inicio, nombre: 'Compra semanal',
-        cuando: Generador.planSemana(inicio).arranque ? 'la primera, el lunes' : 'sábado',
-        items: compraDe(inicio).filter(i => i.clave),
-        registro: Estado.compra(inicio) },
-      { tipo: 'hojas', clave: inicio, nombre: 'Reposición de hojas',
-        cuando: 'miércoles',
-        items: COMPRA_HOJAS,
-        registro: Estado.hojas(inicio) },
-      { tipo: 'alacena', clave: fecha, nombre: 'Alacena',
-        cuando: U.fechaLarga(U.parse(fecha)),
-        items: COMPRA_ALACENA.filter(i => !(i.unaVez && Estado.unaVezHecho(i.id))),
-        registro: Estado.alacena(fecha) }
+    const sit = situacion(inicio, ahora);
+    const restante = {};
+    Object.keys(sit).forEach(k => { restante[k] = sit[k].falta; });
+    const b = Estado.borrador();
+
+    const fuentes = [
+      { tipo: 'semanal', items: compraDe(inicio).filter(i => i.clave) },
+      { tipo: 'hojas',   items: COMPRA_HOJAS },
+      { tipo: 'alacena', items: COMPRA_ALACENA.filter(i => !(i.unaVez && Estado.unaVezHecho(i.id))) }
     ];
+
+    const filas = [];
+    fuentes.forEach(f => f.items.forEach(i => {
+      let falta = 0;
+      if (i.clave && i.cant !== null) {
+        // si varios ítems comparten un mismo item de inventario (las latas de
+        // legumbres, por ejemplo) el faltante se reparte entre ellos
+        falta = Math.min(restante[i.clave] || 0, i.cant);
+        restante[i.clave] = (restante[i.clave] || 0) - falta;
+      } else if (i.cant === null) {
+        falta = Estado.unaVezHecho(i.id) ? 0 : 1;   // los de una sola vez
+      }
+      const lleno = falta < 0.5;
+      filas.push({
+        tipo: f.tipo, id: i.id, nombre: i.nombre, un: i.un || '',
+        comercio: i.comercio || 'almacén',
+        detalle: [i.envase, i.nota].filter(Boolean).join(' · '),
+        objetivo: i.cant, falta: Math.round(falta * 10) / 10, lleno,
+        hay: i.clave && sit[i.clave] ? sit[i.clave].hay : 0,
+        marca: b.estado[i.id] || '',
+        cant: (i.id in b.cant) ? b.cant[i.id]
+            : (i.cant === null ? null : (lleno ? i.cant : Math.max(1, Math.round(falta))))
+      });
+    }));
+    return filas;
   }
 
-  return { consumo, entradas, compraDe, heladeraCargada, estado, perecederos, loQueFalta, despensa, despensaCargada,
-           cicloAlacena, proximaAlacena, fuentes, porcionesSueltas, compensacion, momento, yaPaso, arrancado };
+  /* Aceptar: lo marcado como comprado entra al inventario de una. */
+  function aceptarCompra(inicio, ahora) {
+    const filas = filasCompra(inicio, ahora);
+    const items = {};
+    const noConseguidos = [];
+    const unaVez = [];
+    filas.forEach(f => {
+      if (f.marca === 'no') { noConseguidos.push(f.id); return; }
+      if (f.marca !== 'ok') return;
+      if (f.cant === null) { unaVez.push(f.id); return; }
+      const clave = clavesPorItem[f.id];
+      if (clave) items[clave] = (items[clave] || 0) + Number(f.cant);
+      if (esUnaVez[f.id]) unaVez.push(f.id);
+    });
+    Estado.agregarEntrada(items);
+    if (unaVez.length) Estado.marcarUnaVez(unaVez);
+    Estado.registrarNoConseguido(inicio, noConseguidos);
+    Estado.limpiarBorrador();
+    return { items, noConseguidos: noConseguidos.length, unaVez: unaVez.length };
+  }
+
+  /* Índices para no recorrer los catálogos a cada rato. */
+  const clavesPorItem = {};
+  const esUnaVez = {};
+  [COMPRA_SEMANAL, COMPRA_HOJAS, COMPRA_ALACENA].forEach(lista => lista.forEach(i => {
+    if (i.clave) clavesPorItem[i.id] = i.clave;
+    if (i.unaVez) esUnaVez[i.id] = true;
+  }));
+
+  return { consumo, entradas, consumido, stock, situacion, objetivos, compraDe, heladeraCargada,
+           estado, perecederos, loQueFalta, despensa, despensaCargada,
+           cicloAlacena, proximaAlacena, filasCompra, aceptarCompra, porcionesSueltas, compensacion,
+           momento, yaPaso, arrancado };
 })();

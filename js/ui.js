@@ -222,7 +222,8 @@ const UI = (() => {
     const plan = planDe(ahora);
     const arrancado = Inventario.arrancado(ahora);
     const est = Inventario.estado(plan.inicio, ahora);
-    const compra = Estado.compra(plan.inicio);
+    const ent = Estado.entradas();
+    const compra = ent.length ? ent[ent.length - 1] : null;
     let h = '';
 
     if (!arrancado) {
@@ -235,12 +236,11 @@ const UI = (() => {
         <div>
           <div style="font-family:var(--serif);font-size:19px">${plan.arranque ? 'Primera compra' : 'Compra del sábado'}</div>
           <div style="color:var(--tenue2);font-size:13px">${compra
-            ? 'Registrada el ' + esc(U.fechaLarga(U.parse(compra.fecha))) + (compra.faltantes.length ? ' · ' + compra.faltantes.length + ' sin conseguir' : '')
-            : (plan.arranque ? 'Se carga el lunes 31, cuando vuelvas de comprar'
-                            : 'Sin registrar: se asume la compra de siempre')}</div>
+            ? 'Última compra: ' + esc(U.fechaLarga(U.parse(compra.fecha)))
+            : 'Se llena desde Compras, marcando lo que comprás'}</div>
         </div>
       </div>
-      <button class="btn btn-acento btn-full" data-act="ya-compre">${compra ? 'Rehacer la compra de la semana' : 'Ya compré'}</button>
+      <button class="btn btn-acento btn-full" data-act="ya-compre">Ir a Compras</button>
     </div>`;
 
     const per = Inventario.perecederos(plan.inicio, ahora);
@@ -299,97 +299,79 @@ const UI = (() => {
     return h;
   }
 
-  /* ================= COMPRAS ================= */
   /* ================= COMPRAS =================
-     Una sola pantalla para las tres compras. Cada renglon se marca mientras
-     se compra y eso ya carga el inventario: no hay botón de guardar. Los
-     estados son sin marcar / lo compré / no lo conseguí, y la cantidad se
-     puede editar si compré de más o de menos. */
-
-  const TIPOS = { semanal: 'semanal', hojas: 'hojas', alacena: 'alacena' };
+     Una sola pantalla. Cada renglón muestra lo que falta para volver a tener
+     el ítem completo; lo que ya está lleno aparece marcado solo. Marcar y
+     aceptar suma al inventario. */
 
   function comprasMenu(ahora) {
     const plan = planDe(ahora);
-    const fuentes = Inventario.fuentes(plan.inicio, ahora);
-    const activas = Estado.tildes('fuentes');
-    // por defecto: la semanal siempre, y la alacena si todavía no se registró
-    const visible = (f) => (f.tipo in activas) ? activas[f.tipo]
-      : (f.tipo === 'semanal' || (f.tipo === 'alacena' && !f.registro));
+    const filas = Inventario.filasCompra(plan.inicio, ahora);
+    const verTodo = !!Estado.tildes('compras')['todo'];
+    const visibles = verTodo ? filas : filas.filter(f => !f.lleno || f.marca);
+    const marcados = filas.filter(f => f.marca === 'ok');
+    const faltan = filas.filter(f => !f.lleno).length;
 
-    let h = `<div class="chips">` + fuentes.map(f => `
-      <button class="chip ${visible(f) ? 'on' : ''}" data-fuente="${f.tipo}">
-        ${esc(f.nombre)}<small>${esc(f.cuando)}</small></button>`).join('') + `</div>`;
+    let h = `<div class="acciones" style="margin-top:0">
+        <button class="btn ${verTodo ? '' : 'btn-acento'}" data-act="ver-falta">Lo que falta${faltan ? ' (' + faltan + ')' : ''}</button>
+        <button class="btn ${verTodo ? 'btn-acento' : ''}" data-act="ver-todo">Ver todo</button>
+      </div>`;
 
-    // todos los renglones visibles, agrupados por comercio
-    const filas = [];
-    fuentes.filter(visible).forEach(f => {
-      f.items.forEach(i => {
-        if (i.cant === null && !i.clave) return;
-        filas.push({
-          tipo: f.tipo, clave: f.clave, item: i,
-          comercio: i.comercio || 'almacén',
-          estado: (f.registro && f.registro.estado[i.id]) || '',
-          cant: (f.registro && (i.id in f.registro.cant)) ? f.registro.cant[i.id] : i.cant,
-          origen: f.tipo === 'semanal' ? '' : f.nombre.toLowerCase()
-        });
-      });
-    });
-
-    if (!filas.length) {
-      h += `<p class="vacio-msg">Elegí arriba qué compra estás haciendo.</p>`;
+    if (!visibles.length) {
+      h += `<p class="vacio-msg">No falta nada: el inventario está completo.</p>`;
       return h + extrasCompras(ahora, plan);
     }
 
-    const comercios = COMERCIOS.filter(c => filas.some(f => f.comercio === c));
-    comercios.forEach(c => {
-      const enSeccion = filas.filter(f => f.comercio === c);
-      const todo = enSeccion.every(f => f.estado === 'ok');
+    COMERCIOS.filter(c => visibles.some(f => f.comercio === c)).forEach(c => {
+      const enSeccion = visibles.filter(f => f.comercio === c);
+      const pendientes = enSeccion.filter(f => f.marca !== 'ok');
       h += `<div class="cab-seccion">
           <span class="comercio" style="margin:0">${esc(c)}</span>
-          <button class="mini" data-act="marcar-seccion" data-valor="${todo ? '' : 'ok'}"
-                  data-filas="${enSeccion.map(f => f.tipo + '|' + f.clave + '|' + f.item.id).join(';')}">
-            ${todo ? 'Desmarcar' : 'Marcar todo'}</button>
+          <button class="mini" data-act="marcar-seccion" data-valor="${pendientes.length ? 'ok' : ''}"
+                  data-filas="${enSeccion.map(f => f.id).join(';')}">
+            ${pendientes.length ? 'Marcar todo' : 'Desmarcar'}</button>
         </div><div class="card compras">`;
       enSeccion.forEach(f => { h += fila(f); });
       h += `</div>`;
     });
 
     h += `<div class="acciones">
-        <button class="btn" data-act="copiar-compra">Copiar como texto</button>
-        <button class="btn btn-fantasma" data-act="reiniciar-compra">Empezar de nuevo</button>
+        <button class="btn btn-acento btn-full" data-act="aceptar-compra" ${marcados.length ? '' : 'disabled'}>
+          ${marcados.length ? 'Aceptar y sumar al inventario (' + marcados.length + ')' : 'Marcá lo que compraste'}</button>
       </div>
-      <p class="vacio-msg">Tocá el cuadrito una vez para <b>lo compré</b> y otra para
-        <b>no lo conseguí</b>. Lo que no conseguís es lo único que cambia el plan de la
-        semana. Si comprás otra cantidad, escribila y queda cargada esa.</p>`;
+      <div class="acciones">
+        <button class="btn" data-act="copiar-compra">Copiar lo que falta</button>
+        <button class="btn btn-fantasma" data-act="reiniciar-compra">Desmarcar todo</button>
+      </div>
+      <p class="vacio-msg">Un toque marca <b>lo compré</b>, otro <b>no lo conseguí</b>.
+        La cantidad que aparece es la que falta para completar; si comprás otra, escribila.
+        Al aceptar, todo eso entra al inventario y los renglónes se vuelven a llenar solos
+        a medida que las comidas lo consumen.</p>`;
 
     return h + extrasCompras(ahora, plan);
   }
 
   function fila(f) {
-    const i = f.item;
-    const marca = f.estado === 'ok' ? 'ok' : f.estado === 'no' ? 'no' : '';
-    const unidad = i.un === 'u' ? 'u' : (i.un || '');
-    const editable = i.cant !== null;
-    return `<div class="fila ${marca}" data-tipo="${f.tipo}" data-clave="${f.clave}" data-item="${esc(i.id)}">
-        <button class="caja" data-act="marcar-item">${marca === 'ok' ? '✓' : marca === 'no' ? '✕' : ''}</button>
-        <span class="txt">${esc(i.nombre)}${f.origen || i.envase || i.nota
-          ? '<small>' + esc([f.origen, i.envase, i.nota].filter(Boolean).join(' · ')) + '</small>' : ''}</span>
+    const marca = f.marca === 'ok' ? 'ok' : f.marca === 'no' ? 'no' : f.lleno ? 'lleno' : '';
+    // un renglon lleno muestra lo que hay; si lo marco igual, aparece el input
+    const editable = f.cant !== null && f.marca !== 'no' && (!f.lleno || f.marca === 'ok');
+    return `<div class="fila ${marca}" data-item="${esc(f.id)}">
+        <button class="caja" data-act="marcar-item">${
+          f.marca === 'ok' ? '✓' : f.marca === 'no' ? '✕' : f.lleno ? '·' : ''}</button>
+        <span class="txt">${esc(f.nombre)}${f.detalle ? '<small>' + esc(f.detalle) + '</small>' : ''}</span>
         ${editable
           ? `<input class="cant-input" type="number" inputmode="decimal" step="any" min="0"
-                    value="${f.cant}" data-act="cant"><span class="un">${esc(unidad)}</span>`
-          : `<span class="un"></span>`}
+                    value="${f.cant}" data-act="cant"><span class="un">${esc(f.un)}</span>`
+          : `<span class="un" style="min-width:auto">${f.marca === 'no' ? 'no había'
+              : f.cant === null ? 'ya lo tenés' : 'tenés ' + f.hay + ' ' + esc(f.un)}</span>`}
       </div>`;
   }
 
-  /* Debajo de la compra: lo que falta y el fraccionado, que no son compras
-     fijas sino cosas que se calculan. */
+  /* Debajo de la compra: lo que falta con detalle y el fraccionado. */
   function extrasCompras(ahora, plan) {
-    const falta = Inventario.loQueFalta(plan.inicio, ahora);
     return `<div class="seccion"><h2>Además</h2></div>
       <div class="menu-compras">
-        ${mc('Lo que falta', falta.length
-            ? falta.length + ' ' + (falta.length === 1 ? 'ítem' : 'ítems') + ' para las comidas que quedan'
-            : 'No falta nada', 'falta')}
+        ${mc('Para qué comidas falta', 'El detalle de lo que no alcanza', 'falta')}
         ${mc('Fraccionado', 'Porcionar y freezar apenas volvés', 'fraccionado')}
       </div>`;
   }
@@ -470,6 +452,24 @@ const UI = (() => {
 
   const SALTO = String.fromCharCode(10);
 
+  /* Para copiar: solo lo que falta comprar, agrupado por comercio. */
+  function textoFalta(ahora) {
+    const plan = planDe(ahora || new Date());
+    const filas = Inventario.filasCompra(plan.inicio, ahora || new Date())
+      .filter(f => !f.lleno && f.marca !== 'ok' && f.marca !== 'no');
+    if (!filas.length) return 'No falta nada.';
+    const out = [];
+    COMERCIOS.filter(c => filas.some(f => f.comercio === c)).forEach(c => {
+      out.push(c.toUpperCase());
+      filas.filter(f => f.comercio === c).forEach(f => {
+        out.push('- ' + f.nombre + (f.cant === null ? '' : '  ' + f.cant + ' ' + f.un));
+      });
+      out.push('');
+    });
+    return out.join(SALTO).trim();
+  }
+
+
   /* Texto plano para copiar, tanto de una lista como de la pantalla de compras. */
   function textoLista() {
     const out = [];
@@ -514,6 +514,6 @@ const UI = (() => {
   }
 
   return { hoy, proximos, inventario, comprasMenu, listaFalta, listaFraccionado,
-           textoLista, hojaCambiar, hojaEmergencia,
+           textoLista, textoFalta, hojaCambiar, hojaEmergencia,
            planDe, semanaDe, slotsDe, slotDe, esc };
 })();
