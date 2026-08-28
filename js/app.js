@@ -100,6 +100,38 @@ const App = (() => {
     }
   }
 
+  /* Marcar un renglón no redibuja la lista: se le cambia la clase y listo.
+     Redibujar entera hacía saltar la página al principio. */
+  function pintarFila(el, estado) {
+    el.classList.remove('ok', 'no', 'lleno');
+    if (estado) el.classList.add(estado);
+    else if (el.dataset.lleno === '1') el.classList.add('lleno');
+    el.querySelector('.caja').textContent =
+      estado === 'ok' ? '✓' : estado === 'no' ? '✕' : (el.dataset.lleno === '1' ? '·' : '');
+  }
+
+  /* Los rótulos que dependen de cuántas cosas hay marcadas. */
+  function actualizarCompras() {
+    const filas = [].slice.call(vista.querySelectorAll('.fila'));
+    if (!filas.length) return;
+    const marcados = filas.filter(f => f.classList.contains('ok')).length;
+    const aceptar = vista.querySelector('[data-act="aceptar-compra"]');
+    if (aceptar) {
+      aceptar.disabled = !marcados;
+      aceptar.textContent = marcados
+        ? 'Aceptar y sumar al inventario (' + marcados + ')'
+        : 'Marcá lo que compraste';
+    }
+    vista.querySelectorAll('[data-act="marcar-seccion"]').forEach(b => {
+      const pendiente = b.dataset.filas.split(';').some(id => {
+        const f = vista.querySelector('.fila[data-item="' + id + '"]');
+        return f && !f.classList.contains('ok');
+      });
+      b.dataset.valor = pendiente ? 'ok' : '';
+      b.textContent = pendiente ? 'Marcar todo' : 'Desmarcar';
+    });
+  }
+
   /* ---------------- eventos ---------------- */
   document.getElementById('tabs').addEventListener('click', e => {
     const b = e.target.closest('.tab');
@@ -123,8 +155,9 @@ const App = (() => {
   vista.addEventListener('change', e => {
     const inp = e.target.closest('[data-act="cant"]');
     if (!inp) return;
-    Estado.setCantidad(inp.closest('.fila').dataset.item, inp.value);
-    render();
+    const f = inp.closest('.fila');
+    Estado.setCantidad(f.dataset.item, inp.value);
+    if (!f.classList.contains('ok')) { pintarFila(f, 'ok'); actualizarCompras(); }
   });
 
   vista.addEventListener('click', e => {
@@ -159,12 +192,19 @@ const App = (() => {
       const f = btn.closest('.fila');
       const estado = f.classList.contains('ok') ? 'no' : f.classList.contains('no') ? '' : 'ok';
       Estado.marcarItem(f.dataset.item, estado);
-      render();
+      pintarFila(f, estado);
+      actualizarCompras();
       return;
     }
     if (act === 'marcar-seccion') {
-      Estado.marcarVarios(btn.dataset.filas.split(';'), btn.dataset.valor || '');
-      render();
+      const ids = btn.dataset.filas.split(';');
+      const valor = btn.dataset.valor || '';
+      Estado.marcarVarios(ids, valor);
+      ids.forEach(id => {
+        const f = vista.querySelector('.fila[data-item="' + id + '"]');
+        if (f) pintarFila(f, valor);
+      });
+      actualizarCompras();
       return;
     }
     if (act === 'aceptar-compra') {

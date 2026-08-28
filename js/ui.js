@@ -356,21 +356,23 @@ const UI = (() => {
     return h + extrasCompras(ahora, plan);
   }
 
+  /* El renglón trae dentro todos sus estados y el CSS muestra el que
+     corresponde. Así marcar es cambiarle una clase, sin redibujar la lista
+     entera ni perder dónde estabas leyendo. */
   function fila(f) {
     const marca = f.marca === 'ok' ? 'ok' : f.marca === 'no' ? 'no' : f.lleno ? 'lleno' : '';
-    // un renglon lleno muestra lo que hay; si lo marco igual, aparece el input
-    const editable = f.cant !== null && f.marca !== 'no' && (!f.lleno || f.marca === 'ok');
-    return `<div class="fila ${marca}" data-item="${esc(f.id)}">
-        <button class="caja" data-act="marcar-item">${
-          f.marca === 'ok' ? '✓' : f.marca === 'no' ? '✕' : f.lleno ? '·' : ''}</button>
+    const glifo = f.marca === 'ok' ? '✓' : f.marca === 'no' ? '✕' : f.lleno ? '·' : '';
+    const conCantidad = f.cant !== null;
+    return `<div class="fila ${marca}" data-item="${esc(f.id)}" data-lleno="${f.lleno ? 1 : 0}">
+        <button class="caja" data-act="marcar-item">${glifo}</button>
         <span class="txt">${esc(f.nombre)}${f.detalle ? '<small>' + esc(f.detalle) + '</small>' : ''}</span>
-        ${editable
+        ${conCantidad
           ? `<input class="cant-input" type="number" inputmode="decimal" step="any" min="0"
-                    value="${f.cant}" data-act="cant"><span class="un">${esc(f.un)}</span>`
-          : `<span class="un" style="min-width:auto">${f.marca === 'no' ? 'no había'
-              : !f.lleno ? 'comprar'
-              : f.cant === null ? 'ya lo tenés'
-              : 'tenés ' + f.hay + ' ' + esc(f.un)}</span>`}
+                    value="${f.cant}" data-act="cant"><span class="un">${esc(f.un)}</span>
+             <span class="leyenda tenes">tenés ${f.hay} ${esc(f.un)}</span>`
+          : `<span class="leyenda tenes">ya lo tenés</span>
+             <span class="leyenda pendiente">comprar</span>`}
+        <span class="leyenda nohabia">no había</span>
       </div>`;
   }
 
