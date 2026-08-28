@@ -329,6 +329,23 @@ const Inventario = (() => {
     return filas;
   }
 
+  /* "Se acabó": deja el stock de ese ítem en cero, así vuelve a la lista de
+     compras con todo lo que hace falta. Sirve para lo que se terminó antes de
+     tiempo o se echó a perder, no solo para los de una sola vez. */
+  function agotar(id, ahora) {
+    ahora = ahora || new Date();
+    const clave = clavesPorItem[id];
+    if (clave) {
+      const hay = stock(ahora)[clave] || 0;
+      if (hay > 0) {
+        const items = {};
+        items[clave] = -hay;
+        Estado.agregarEntrada(items);
+      }
+    }
+    Estado.reponerUnaVez(id);
+  }
+
   /* Aceptar: lo marcado como comprado entra al inventario de una. */
   function aceptarCompra(inicio, ahora) {
     const filas = filasCompra(inicio, ahora);
@@ -360,6 +377,6 @@ const Inventario = (() => {
 
   return { consumo, entradas, consumido, stock, situacion, objetivos, compraDe, heladeraCargada,
            estado, perecederos, loQueFalta, despensa, despensaCargada,
-           cicloAlacena, proximaAlacena, filasCompra, aceptarCompra, porcionesSueltas, compensacion,
+           cicloAlacena, proximaAlacena, filasCompra, aceptarCompra, agotar, porcionesSueltas, compensacion,
            momento, yaPaso, arrancado };
 })();

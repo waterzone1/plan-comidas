@@ -114,13 +114,12 @@ const UI = (() => {
       </div>
       <div class="seccion"><h2>Para ese día</h2></div>
       <div class="menu-compras">
-        ${mc(1, 'Compra semanal', 'Toda la comida fresca de la semana', 'semanal')}
-        ${mc(2, 'Compra de alacena', 'Todo lo seco: la despensa arranca vacía', 'alacena')}
-        ${mc(5, 'Fraccionado', 'Porcionar y freezar apenas volvés', 'fraccionado')}
+        ${mc('La lista de compras', 'Todo lo que hace falta para arrancar', 'compras')}
+        ${mc('Fraccionado', 'Porcionar y freezar apenas volvés', 'fraccionado')}
       </div>
-      <p class="vacio-msg" style="margin-top:14px">Cuando vuelvas de comprar, apretá
-        <b>Ya compré</b> en Inventario y quedan las diez comidas de la primera semana
-        (lunes a viernes) generadas de una.</p>`;
+      <p class="vacio-msg" style="margin-top:14px">En Compras vas marcando lo que
+        conseguís y al final apretás <b>Aceptar</b>: eso carga el inventario y quedan
+        las diez comidas de la primera semana (lunes a viernes) listas.</p>`;
   }
 
   /* ================= HOY ================= */
@@ -287,10 +286,16 @@ const UI = (() => {
 
     const unaVez = COMPRA_ALACENA.filter(i => i.unaVez && Estado.unaVezHecho(i.id));
     if (unaVez.length) {
-      h += `<div class="seccion"><h2>Comprado una sola vez</h2><span class="nota">tocá para reponer</span></div><div class="card"><ul class="inv">` +
-        unaVez.map(i => `<li><span class="n">${esc(i.nombre)}</span>
-          <button class="btn btn-fantasma" data-act="reponer" data-id="${i.id}">Se acabó</button></li>`).join('') +
-        `</ul></div>`;
+      // El tilde dice que lo tenés. Se destilda el que se haya acabado y ese
+      // vuelve solo a la lista de compras.
+      h += `<div class="seccion"><h2>Comprado una sola vez</h2>
+          <span class="nota">tocá el que se te acabó</span></div>
+        <div class="card">` +
+        unaVez.map(i => `<button class="check on" data-act="reponer" data-id="${i.id}">
+          <span class="caja">✓</span>
+          <span class="txt">${esc(i.nombre)}<small>lo tenés · tocá si se acabó</small></span>
+        </button>`).join('') +
+        `</div>`;
     }
 
     h += `<hr class="sep">
@@ -363,7 +368,9 @@ const UI = (() => {
           ? `<input class="cant-input" type="number" inputmode="decimal" step="any" min="0"
                     value="${f.cant}" data-act="cant"><span class="un">${esc(f.un)}</span>`
           : `<span class="un" style="min-width:auto">${f.marca === 'no' ? 'no había'
-              : f.cant === null ? 'ya lo tenés' : 'tenés ' + f.hay + ' ' + esc(f.un)}</span>`}
+              : !f.lleno ? 'comprar'
+              : f.cant === null ? 'ya lo tenés'
+              : 'tenés ' + f.hay + ' ' + esc(f.un)}</span>`}
       </div>`;
   }
 

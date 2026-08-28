@@ -295,6 +295,30 @@ ok(!Generador.planSemana(semUno).slots.some(x => x.guarnicion.verduras.indexOf('
 Estado.borrarTodo();
 Generador.limpiarCache();
 
+console.log('== "se acabó" devuelve el ítem a la lista ==');
+Estado.borrarTodo();
+Generador.limpiarCache();
+const ahoraX = U.parse(ARRANQUE);
+Estado.marcarVarios(Inventario.filasCompra(semUno, ahoraX).map(f => f.id), 'ok');
+Inventario.aceptarCompra(semUno, ahoraX);
+ok(Inventario.stock(ahoraX)['soja'] === 500, 'la salsa de soja entra con la alacena');
+ok(!Inventario.filasCompra(semUno, ahoraX).some(f => f.id === 'a_soja' && !f.lleno),
+   'y mientras está, no figura como faltante');
+Inventario.agotar('a_soja', ahoraX);
+ok(Inventario.stock(ahoraX)['soja'] === 0, 'marcarla como acabada deja el stock en cero');
+const vuelta = Inventario.filasCompra(semUno, ahoraX).find(f => f.id === 'a_soja');
+ok(vuelta && !vuelta.lleno && vuelta.cant === 500, 'y vuelve a la lista con su cantidad',
+   vuelta && vuelta.cant);
+// los de una sola vez sin cantidad también vuelven
+Estado.marcarUnaVez(['a_aceto']);
+ok(!Inventario.filasCompra(semUno, ahoraX).some(f => f.id === 'a_aceto'),
+   'comprado una vez, el aceto desaparece de la lista');
+Inventario.agotar('a_aceto', ahoraX);
+const ac = Inventario.filasCompra(semUno, ahoraX).find(f => f.id === 'a_aceto');
+ok(ac && !ac.lleno, 'y al acabarse vuelve a aparecer');
+Estado.borrarTodo();
+Generador.limpiarCache();
+
 console.log('== antes del arranque no hay plan ==');
 ok(!Inventario.arrancado(U.sumarDias(U.parse(ARRANQUE), -1)), 'el día anterior todavía no arrancó');
 ok(Inventario.arrancado(U.parse(ARRANQUE)), 'el día del arranque sí');

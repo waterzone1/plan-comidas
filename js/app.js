@@ -129,7 +129,12 @@ const App = (() => {
 
     const mc = t.closest('[data-lista]:not([data-tildar])');
     // los botones de lista también aparecen en la pantalla previa al arranque
-    if (mc && mc.classList.contains('mc')) { tab = 'compras'; subvista = mc.dataset.lista; render(); return; }
+    if (mc && mc.classList.contains('mc')) {
+      tab = 'compras';
+      subvista = mc.dataset.lista === 'compras' ? null : mc.dataset.lista;
+      render();
+      return;
+    }
 
     const tildar = t.closest('[data-tildar]');
     if (tildar) {
@@ -186,7 +191,7 @@ const App = (() => {
     }
 
     if (act === 'ya-compre') { ir('compras'); return; }
-    if (act === 'reponer') { Estado.reponerUnaVez(btn.dataset.id); render(); aviso('Vuelve a la lista de alacena'); return; }
+    if (act === 'reponer') { Inventario.agotar(btn.dataset.id, new Date()); refrescar(); aviso('Vuelve a la lista de compras'); return; }
     if (act === 'borrar') {
       if (confirm('¿Borrar compras, cambios y tildes? El plan se recalcula desde cero.')) {
         Estado.borrarTodo(); refrescar(); aviso('Listo, arranca de cero');
