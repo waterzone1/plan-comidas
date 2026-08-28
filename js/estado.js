@@ -8,24 +8,52 @@
 const Estado = (() => {
   const CLAVE = 'plan.comidas.v1';
 
+  /* Una compra registrada es siempre { fecha, faltantes: [ids], cant: {id: n} }.
+     faltantes = lo que no conseguí; cant = solo lo que compré distinto de lo
+     sugerido. Lo que no está en cant entró en la cantidad de la lista. */
   const vacio = () => ({
-    compras: {},        // inicioSemana -> { fecha, faltantes: [idItem] }
-    hojas: {},          // inicioSemana -> true (se hizo la reposición del miércoles)
+    compras: {},        // inicioSemana -> compra registrada (la semanal)
+    hojas: {},          // inicioSemana -> compra registrada (reposición del miércoles)
+    alacena: {},        // fecha      -> compra registrada (cada 3 semanas)
     cambios: {},        // inicioSemana -> { 'dia:comida' -> idPlato }
     fijados: {},        // inicioSemana -> { 'dia:comida' -> {plato, base, guarnicion} }
     saltados: {},       // inicioSemana -> ['dia:comida']
     verdura: {},        // inicioSemana -> { 'dia:comida' -> gramos }
     unaVez: [],         // ids de alacena ya comprados una vez
-    tildes: {},         // idLista -> { idItem: true }
-    alacena: []         // fechas de alacena ya compradas
+    tildes: {}          // idLista -> { idItem: true }
   });
 
   let s = null;
 
+  /* Los formatos viejos se convierten al leer: hojas era true/false y
+     alacena era una lista de fechas. */
+  function migrar(st) {
+    if (st.hojas === true || Array.isArray(st.hojas)) st.hojas = {};
+    Object.keys(st.hojas || {}).forEach(k => {
+      if (st.hojas[k] === true) st.hojas[k] = { fecha: k, estado: {}, cant: {} };
+    });
+    if (Array.isArray(st.alacena)) {
+      const m = {};
+      st.alacena.forEach(f => { m[f] = { fecha: f, estado: {}, cant: {} }; });
+      st.alacena = m;
+    }
+    // el formato viejo guardaba solo los faltantes: lo demas se daba por comprado
+    Object.keys(st.compras || {}).forEach(k => {
+      const r = st.compras[k];
+      if (r && !r.estado) {
+        r.estado = {};
+        (r.faltantes || []).forEach(id => { r.estado[id] = 'no'; });
+        delete r.faltantes;
+      }
+      if (r && !r.cant) r.cant = {};
+    });
+    return st;
+  }
+
   function cargar() {
     if (s) return s;
     try {
-      s = Object.assign(vacio(), JSON.parse(localStorage.getItem(CLAVE) || '{}'));
+      s = migrar(Object.assign(vacio(), JSON.parse(localStorage.getItem(CLAVE) || '{}')));
     } catch (e) {
       s = vacio();
     }
@@ -41,26 +69,78 @@ const Estado = (() => {
     return st[mapa][semana];
   };
 
+  const MAPA = { semanal: 'compras', hojas: 'hojas', alacena: 'alacena' };
+
+  /* El registro de una compra, creándolo si hace falta. */
+  function registroVivo(tipo, clave) {
+    const st = cargar()[MAPA[tipo]];
+    if (!st[clave]) st[clave] = { fecha: U.ymd(new Date()), estado: {}, cant: {} };
+    if (!st[clave].estado) st[clave].estado = {};
+    if (!st[clave].cant) st[clave].cant = {};
+    return st[clave];
+  }
+
+  /* Si no queda nada marcado, no hay registro: la compra no empezó. */
+  function limpiarSiVacio(tipo, clave) {
+    const st = cargar()[MAPA[tipo]];
+    const r = st[clave];
+    if (r && !Object.keys(r.estado).length) delete st[clave];
+  }
+
   return {
     get: cargar,
     guardar,
 
     compra:   (sem) => cargar().compras[sem] || null,
-    faltantes:(sem) => (cargar().compras[sem] || {}).faltantes || [],
+    /* Lo que marqué explícitamente como "no lo conseguí". Es lo único de la
+       compra que cambia el plan: lo que está sin marcar no lo condiciona. */
+    faltantes: (sem) => {
+      const r = cargar().compras[sem];
+      if (!r || !r.estado) return [];
+      return Object.keys(r.estado).filter(id => r.estado[id] === 'no');
+    },
     cambios:  (sem) => cargar().cambios[sem] || {},
     fijados:  (sem) => cargar().fijados[sem] || {},
     saltados: (sem) => cargar().saltados[sem] || [],
     verduras: (sem) => cargar().verdura[sem] || {},
-    hojas:    (sem) => !!cargar().hojas[sem],
+    hojas:    (sem) => cargar().hojas[sem] || null,
+    alacena:  (fecha) => cargar().alacena[fecha] || null,
+    hayAlgunaAlacena: () => Object.keys(cargar().alacena).length > 0,
 
-    registrarCompra(sem, faltantes) {
-      cargar().compras[sem] = { fecha: U.ymd(new Date()), faltantes: faltantes.slice() };
-      // una compra nueva rehace la semana entera
-      delete cargar().fijados[sem];
+    /* Las tres compras se registran igual, ítem por ítem y a medida que se
+       compra. Cada ítem puede estar sin marcar, 'ok' (lo compré) o 'no' (no
+       lo conseguí), y puede tener una cantidad distinta de la sugerida. */
+    registro(tipo, clave) {
+      const st = cargar()[MAPA[tipo]];
+      return st[clave] || null;
+    },
+    marcarItem(tipo, clave, id, valor) {
+      const r = registroVivo(tipo, clave);
+      if (valor) r.estado[id] = valor; else { delete r.estado[id]; delete r.cant[id]; }
+      r.fecha = U.ymd(new Date());
+      if (tipo === 'semanal') delete cargar().fijados[clave];
+      limpiarSiVacio(tipo, clave);
       guardar();
     },
-    registrarHojas(sem, hecho) {
-      if (hecho) cargar().hojas[sem] = true; else delete cargar().hojas[sem];
+    marcarVarios(tipo, clave, ids, valor) {
+      const r = registroVivo(tipo, clave);
+      ids.forEach(id => {
+        if (valor) r.estado[id] = valor; else { delete r.estado[id]; delete r.cant[id]; }
+      });
+      r.fecha = U.ymd(new Date());
+      if (tipo === 'semanal') delete cargar().fijados[clave];
+      limpiarSiVacio(tipo, clave);
+      guardar();
+    },
+    setCantidad(tipo, clave, id, n) {
+      const r = registroVivo(tipo, clave);
+      if (n === null || n === undefined || n === '') delete r.cant[id];
+      else r.cant[id] = Number(n);
+      if (!r.estado[id]) r.estado[id] = 'ok';   // cargar cantidad es haberlo comprado
+      guardar();
+    },
+    limpiarRegistro(tipo, clave) {
+      delete cargar()[MAPA[tipo]][clave];
       guardar();
     },
     /* Un cambio congela todo lo anterior y recalcula de ahí para adelante. */
@@ -107,12 +187,7 @@ const Estado = (() => {
       guardar();
     },
 
-    alacenaHecha: (fecha) => cargar().alacena.indexOf(fecha) >= 0,
-    marcarAlacena(fecha) {
-      const st = cargar();
-      if (st.alacena.indexOf(fecha) < 0) st.alacena.push(fecha);
-      guardar();
-    },
+    alacenaHecha: (fecha) => !!cargar().alacena[fecha],
 
     borrarTodo() {
       s = vacio();

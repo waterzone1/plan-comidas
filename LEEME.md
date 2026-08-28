@@ -65,6 +65,28 @@ cuatro guarniciones lo usan y el resto quedaba en el freezer.
 Si cambiás el catálogo de guarniciones, las cantidades hay que recalcularlas:
 son un punto fijo entre lo que se compra y lo que el generador elige.
 
+## La pantalla de Compras
+
+Una sola pantalla para las tres compras. Arriba se elige cuál se está
+haciendo (semanal, hojas del miércoles, alacena) y abajo aparece todo junto,
+agrupado por comercio en el orden en que se recorren los locales.
+
+Cada renglón se toca para cambiar de estado:
+
+| Estado | Qué significa |
+|---|---|
+| sin marcar | todavía no lo compré |
+| ✓ | lo compré: entra al inventario con esa cantidad |
+| ✕ | no lo conseguí: **esto es lo único que cambia el plan de la semana** |
+
+La cantidad de cada renglón se puede editar. Si comprás de más o de menos,
+escribís el número y entra ese. Cada sección tiene un botón para marcar todo
+de una.
+
+No hay botón de guardar: marcar ya carga el inventario. El inventario refleja
+lo que confirmaste, no lo que la lista suponía; el plan, en cambio, nunca
+depende de que marques nada.
+
 ## Estructura
 
 ```
@@ -112,9 +134,10 @@ Los cuatro archivos de `datos/` son listas planas, sin lógica adentro.
 Agregar un plato es agregar una línea con su grupo de proteína, las bases que
 acepta y sus tags. Lo mismo con las guarniciones.
 
-Editás, guardás y listo: la versión nueva aparece la próxima vez que abrís la
-app. No hay que avisarle nada al service worker. Si la tenés abierta en ese
-momento, cerrala del selector de apps y volvé a abrirla.
+Editás, guardás y listo: la versión nueva aparece sola. El service worker le
+da a la red un segundo y medio antes de usar su copia, y si detecta una
+versión nueva la app se recarga una vez sola. Abajo de todo en Inventario
+figura la fecha de los archivos que estás viendo, para poder confirmarlo.
 
 Y correr las pruebas:
 

@@ -42,37 +42,39 @@ const COMPRA_SEMANAL = [
    La primera es el día del arranque: la despensa empieza vacía. --- */
 const FECHAS_ALACENA = ['2026-08-31', '2026-09-17', '2026-10-08', '2026-10-29'];
 
+/* cant/un son la cantidad que entra al inventario; envase es cómo se pide en
+   el comercio. Los de "una sola vez" no se siguen: cant null. */
 const COMPRA_ALACENA = [
   // bases secas — el consumo real es de 348 g por ciclo; medio kilo deja margen
-  { id: 'a_arroz',    nombre: 'Arroz largo fino',        cant: '1 paquete de 500 g', grupo: 'Bases secas',        clave: 'arroz' },
-  { id: 'a_fideos',   nombre: 'Fideos secos',            cant: '1 paquete de 500 g', grupo: 'Bases secas',        clave: 'fideos' },
-  { id: 'a_polenta',  nombre: 'Polenta instantánea',     cant: '1 paquete de 500 g', grupo: 'Bases secas',        clave: 'polenta' },
-  { id: 'a_cebada',   nombre: 'Cebada perlada',          cant: '1 paquete de 500 g', grupo: 'Bases secas',        clave: 'cebada' },
-  { id: 'a_pure',     nombre: 'Puré instantáneo',        cant: '1 caja de 200 g',    grupo: 'Bases secas',        clave: 'pure' },
+  { id: 'a_arroz',    nombre: 'Arroz largo fino',        cant: 500,  un: 'g',       envase: '1 paquete de 500 g', grupo: 'Bases secas',       clave: 'arroz' },
+  { id: 'a_fideos',   nombre: 'Fideos secos',            cant: 500,  un: 'g',       envase: '1 paquete de 500 g', grupo: 'Bases secas',       clave: 'fideos' },
+  { id: 'a_polenta',  nombre: 'Polenta instantánea',     cant: 500,  un: 'g',       envase: '1 paquete de 500 g', grupo: 'Bases secas',       clave: 'polenta' },
+  { id: 'a_cebada',   nombre: 'Cebada perlada',          cant: 500,  un: 'g',       envase: '1 paquete de 500 g', grupo: 'Bases secas',       clave: 'cebada' },
+  { id: 'a_pure',     nombre: 'Puré instantáneo',        cant: 200,  un: 'g',       envase: '1 caja de 200 g',    grupo: 'Bases secas',       clave: 'pure' },
 
-  { id: 'a_garbanzos',nombre: 'Garbanzos',               cant: '4 latas',            grupo: 'Latas',              clave: 'legumbres' },
-  { id: 'a_lentejas', nombre: 'Lentejas',                cant: '4 latas',            grupo: 'Latas',              clave: 'legumbres' },
-  { id: 'a_porotos',  nombre: 'Porotos negros',          cant: '2 latas',            grupo: 'Latas',              clave: 'legumbres' },
-  { id: 'a_atun',     nombre: 'Atún al agua',            cant: '3 latas',            grupo: 'Latas',              clave: 'atun' },
+  { id: 'a_garbanzos',nombre: 'Garbanzos',               cant: 4,    un: 'latas',   envase: '',                   grupo: 'Latas',             clave: 'legumbres' },
+  { id: 'a_lentejas', nombre: 'Lentejas',                cant: 4,    un: 'latas',   envase: '',                   grupo: 'Latas',             clave: 'legumbres' },
+  { id: 'a_porotos',  nombre: 'Porotos negros',          cant: 2,    un: 'latas',   envase: '',                   grupo: 'Latas',             clave: 'legumbres' },
+  { id: 'a_atun',     nombre: 'Atún al agua',            cant: 3,    un: 'latas',   envase: '',                   grupo: 'Latas',             clave: 'atun' },
 
-  { id: 'a_salsa',    nombre: 'Salsa de tomate o triturado', cant: '5 packs de 520 g (2,4 kg)', grupo: 'Salsas y líquidos', clave: 'salsa' },
-  { id: 'a_oliva',    nombre: 'Aceite de oliva',         cant: '1 botella de 1 L',   grupo: 'Salsas y líquidos',  clave: 'oliva' },
-  { id: 'a_vino',     nombre: 'Vino blanco para cocinar',cant: '1 botella',          grupo: 'Salsas y líquidos',  clave: 'vino' },
-  { id: 'a_soja',     nombre: 'Salsa de soja o teriyaki',cant: '1 botella de 500 ml',grupo: 'Salsas y líquidos',  clave: 'soja', unaVez: true, nota: 'dura ~11 semanas' },
+  { id: 'a_salsa',    nombre: 'Salsa de tomate o triturado', cant: 2600, un: 'g',   envase: '5 packs de 520 g',   grupo: 'Salsas y líquidos', clave: 'salsa' },
+  { id: 'a_oliva',    nombre: 'Aceite de oliva',         cant: 1000, un: 'ml',      envase: '1 botella de 1 L',   grupo: 'Salsas y líquidos', clave: 'oliva' },
+  { id: 'a_vino',     nombre: 'Vino blanco para cocinar',cant: 1,    un: 'botella', envase: '',                   grupo: 'Salsas y líquidos', clave: 'vino' },
+  { id: 'a_soja',     nombre: 'Salsa de soja o teriyaki',cant: 500,  un: 'ml',      envase: '1 botella de 500 ml',grupo: 'Salsas y líquidos', clave: 'soja', unaVez: true, nota: 'dura ~11 semanas' },
 
-  { id: 'a_proteina', nombre: 'Proteína en polvo',       cant: '1 kg',               grupo: 'Suplementos',        clave: 'proteinapolvo', nota: 'dura 6 semanas: hacen falta 2 en total' },
+  { id: 'a_proteina', nombre: 'Proteína en polvo',       cant: 1000, un: 'g',       envase: '1 kg',               grupo: 'Suplementos',       clave: 'proteinapolvo', nota: 'dura 6 semanas' },
 
-  { id: 'a_extracto', nombre: 'Extracto de tomate',      cant: '',                   grupo: 'Una sola vez',       unaVez: true },
-  { id: 'a_aceto',    nombre: 'Aceto',                   cant: '',                   grupo: 'Una sola vez',       unaVez: true },
-  { id: 'a_miel',     nombre: 'Miel',                    cant: '',                   grupo: 'Una sola vez',       unaVez: true },
-  { id: 'a_mayo',     nombre: 'Mayonesa light',          cant: '',                   grupo: 'Una sola vez',       unaVez: true },
-  { id: 'a_mani',     nombre: 'Manteca de maní',         cant: '',                   grupo: 'Una sola vez',       unaVez: true },
-  { id: 'a_caldo',    nombre: 'Caldo de verdura y de carne en cubo', cant: '',       grupo: 'Una sola vez',       unaVez: true },
-  { id: 'a_spray',    nombre: 'Aceite en spray',         cant: '',                   grupo: 'Una sola vez',       unaVez: true },
-  { id: 'a_sesamo',   nombre: 'Semillas de sésamo',      cant: '',                   grupo: 'Una sola vez',       unaVez: true },
-  { id: 'a_sal',      nombre: 'Sal y pimienta negra',    cant: '',                   grupo: 'Una sola vez',       unaVez: true },
-  { id: 'a_ajo',      nombre: 'Ajo en polvo y cebolla en polvo', cant: '',           grupo: 'Una sola vez',       unaVez: true },
-  { id: 'a_pimenton', nombre: 'Pimentón dulce y orégano',cant: '',                   grupo: 'Una sola vez',       unaVez: true }
+  { id: 'a_extracto', nombre: 'Extracto de tomate',      cant: null, un: '', envase: '', grupo: 'Una sola vez',   unaVez: true },
+  { id: 'a_aceto',    nombre: 'Aceto',                   cant: null, un: '', envase: '', grupo: 'Una sola vez',   unaVez: true },
+  { id: 'a_miel',     nombre: 'Miel',                    cant: null, un: '', envase: '', grupo: 'Una sola vez',   unaVez: true },
+  { id: 'a_mayo',     nombre: 'Mayonesa light',          cant: null, un: '', envase: '', grupo: 'Una sola vez',   unaVez: true },
+  { id: 'a_mani',     nombre: 'Manteca de maní',         cant: null, un: '', envase: '', grupo: 'Una sola vez',   unaVez: true },
+  { id: 'a_caldo',    nombre: 'Caldo de verdura y de carne en cubo', cant: null, un: '', envase: '', grupo: 'Una sola vez', unaVez: true },
+  { id: 'a_spray',    nombre: 'Aceite en spray',         cant: null, un: '', envase: '', grupo: 'Una sola vez',   unaVez: true },
+  { id: 'a_sesamo',   nombre: 'Semillas de sésamo',      cant: null, un: '', envase: '', grupo: 'Una sola vez',   unaVez: true },
+  { id: 'a_sal',      nombre: 'Sal y pimienta negra',    cant: null, un: '', envase: '', grupo: 'Una sola vez',   unaVez: true },
+  { id: 'a_ajo',      nombre: 'Ajo en polvo y cebolla en polvo', cant: null, un: '', envase: '', grupo: 'Una sola vez', unaVez: true },
+  { id: 'a_pimenton', nombre: 'Pimentón dulce y orégano',cant: null, un: '', envase: '', grupo: 'Una sola vez',   unaVez: true }
 ];
 
 /* --- Botón 3: reposición de hojas del miércoles.
@@ -100,17 +102,17 @@ const FRACCIONADO = [
     detalle: 'Tarda 25-40 min y va a la heladera. No entra en el límite de 30 min de una comida' }
 ];
 
-/* Ítems de despensa que no vienen con la compra semanal pero se siguen
-   en el inventario, con lo que entra por ciclo de alacena. */
+/* Ítems de despensa que no vienen con la compra semanal y se siguen aparte.
+   Cuánto entra de cada uno sale de COMPRA_ALACENA, no se repite acá. */
 const DESPENSA = {
-  arroz:         { nombre: 'Arroz',              inicial: 500,  un: 'g' },
-  fideos:        { nombre: 'Fideos',             inicial: 500,  un: 'g' },
-  polenta:       { nombre: 'Polenta',            inicial: 500,  un: 'g' },
-  cebada:        { nombre: 'Cebada perlada',     inicial: 500,  un: 'g' },
-  pure:          { nombre: 'Puré instantáneo',   inicial: 200,  un: 'g' },
-  legumbres:     { nombre: 'Latas de legumbres', inicial: 10,   un: 'latas' },
-  atun:          { nombre: 'Atún al agua',       inicial: 3,    un: 'latas' },
-  salsa:         { nombre: 'Salsa de tomate',    inicial: 2600, un: 'g' },
-  oliva:         { nombre: 'Aceite de oliva',    inicial: 1000, un: 'ml' },
-  proteinapolvo: { nombre: 'Proteína en polvo',  inicial: 1000, un: 'g' }
+  arroz:         { nombre: 'Arroz',              un: 'g' },
+  fideos:        { nombre: 'Fideos',             un: 'g' },
+  polenta:       { nombre: 'Polenta',            un: 'g' },
+  cebada:        { nombre: 'Cebada perlada',     un: 'g' },
+  pure:          { nombre: 'Puré instantáneo',   un: 'g' },
+  legumbres:     { nombre: 'Latas de legumbres', un: 'latas' },
+  atun:          { nombre: 'Atún al agua',       un: 'latas' },
+  salsa:         { nombre: 'Salsa de tomate',    un: 'g' },
+  oliva:         { nombre: 'Aceite de oliva',    un: 'ml' },
+  proteinapolvo: { nombre: 'Proteína en polvo',  un: 'g' }
 };

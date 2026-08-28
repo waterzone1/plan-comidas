@@ -250,20 +250,6 @@ const UI = (() => {
         `</div>`;
     }
 
-    const hojas = Estado.hojas(plan.inicio);
-    h += `<div class="card" style="display:flex;align-items:center;gap:12px">
-      <div style="flex:1">
-        <div style="font-size:15px">Reposición de hojas</div>
-        <div style="color:var(--tenue2);font-size:13px">Miércoles · rúcula, lechuga, espinaca y acelga</div>
-      </div>
-      <button class="btn ${hojas ? '' : 'btn-acento'}" data-act="hojas">${hojas ? 'Hecha' : 'Ya la hice'}</button>
-    </div>`;
-
-    if (!Inventario.heladeraCargada(plan.inicio)) {
-      h += `<div class="nota-card info">La heladera está vacía. Se llena cuando aprietes
-            <b>Ya compré</b>, y de ahí en adelante se va descontando comida por comida.</div>`;
-    }
-
     const grupos = [
       ['Proteínas', est.items.filter(i => i.tipo === 'proteina')],
       ['Verduras', est.items.filter(i => i.tipo === 'verdura')],
@@ -307,33 +293,117 @@ const UI = (() => {
         `</ul></div>`;
     }
 
-    h += `<hr class="sep"><button class="btn btn-fantasma btn-full" data-act="borrar">Borrar todo y empezar de cero</button>`;
+    h += `<hr class="sep">
+      <button class="btn btn-fantasma btn-full" data-act="borrar">Borrar todo y empezar de cero</button>
+      <p class="vacio-msg" style="text-align:center;margin-top:10px">archivos del <span id="sello">…</span></p>`;
     return h;
   }
 
   /* ================= COMPRAS ================= */
+  /* ================= COMPRAS =================
+     Una sola pantalla para las tres compras. Cada renglon se marca mientras
+     se compra y eso ya carga el inventario: no hay botón de guardar. Los
+     estados son sin marcar / lo compré / no lo conseguí, y la cantidad se
+     puede editar si compré de más o de menos. */
+
+  const TIPOS = { semanal: 'semanal', hojas: 'hojas', alacena: 'alacena' };
+
   function comprasMenu(ahora) {
     const plan = planDe(ahora);
-    const prox = FECHAS_ALACENA.find(f => U.parse(f) >= U.medianoche(ahora));
-    const falta = Inventario.loQueFalta(plan.inicio, ahora);
-    return `<div class="menu-compras">
-      ${mc(1, 'Compra semanal', 'Sábado · siempre la misma', 'semanal')}
-      ${mc(2, 'Compra de alacena', prox ? 'Próxima: ' + U.fechaLarga(U.parse(prox)) : 'Cada 3 semanas', 'alacena')}
-      ${mc(3, 'Reposición de hojas', 'Miércoles · rúcula, lechuga, espinaca y acelga', 'hojas')}
-      ${mc(4, 'Lo que falta', falta.length ? falta.length + ' ' + (falta.length === 1 ? 'ítem' : 'ítems') + ' para lo que queda de la semana' : 'No falta nada', 'falta')}
-      ${mc(5, 'Fraccionado', 'Apenas volvés de la compra', 'fraccionado')}
-    </div>`;
+    const fuentes = Inventario.fuentes(plan.inicio, ahora);
+    const activas = Estado.tildes('fuentes');
+    // por defecto: la semanal siempre, y la alacena si todavía no se registró
+    const visible = (f) => (f.tipo in activas) ? activas[f.tipo]
+      : (f.tipo === 'semanal' || (f.tipo === 'alacena' && !f.registro));
+
+    let h = `<div class="chips">` + fuentes.map(f => `
+      <button class="chip ${visible(f) ? 'on' : ''}" data-fuente="${f.tipo}">
+        ${esc(f.nombre)}<small>${esc(f.cuando)}</small></button>`).join('') + `</div>`;
+
+    // todos los renglones visibles, agrupados por comercio
+    const filas = [];
+    fuentes.filter(visible).forEach(f => {
+      f.items.forEach(i => {
+        if (i.cant === null && !i.clave) return;
+        filas.push({
+          tipo: f.tipo, clave: f.clave, item: i,
+          comercio: i.comercio || 'almacén',
+          estado: (f.registro && f.registro.estado[i.id]) || '',
+          cant: (f.registro && (i.id in f.registro.cant)) ? f.registro.cant[i.id] : i.cant,
+          origen: f.tipo === 'semanal' ? '' : f.nombre.toLowerCase()
+        });
+      });
+    });
+
+    if (!filas.length) {
+      h += `<p class="vacio-msg">Elegí arriba qué compra estás haciendo.</p>`;
+      return h + extrasCompras(ahora, plan);
+    }
+
+    const comercios = COMERCIOS.filter(c => filas.some(f => f.comercio === c));
+    comercios.forEach(c => {
+      const enSeccion = filas.filter(f => f.comercio === c);
+      const todo = enSeccion.every(f => f.estado === 'ok');
+      h += `<div class="cab-seccion">
+          <span class="comercio" style="margin:0">${esc(c)}</span>
+          <button class="mini" data-act="marcar-seccion" data-valor="${todo ? '' : 'ok'}"
+                  data-filas="${enSeccion.map(f => f.tipo + '|' + f.clave + '|' + f.item.id).join(';')}">
+            ${todo ? 'Desmarcar' : 'Marcar todo'}</button>
+        </div><div class="card compras">`;
+      enSeccion.forEach(f => { h += fila(f); });
+      h += `</div>`;
+    });
+
+    h += `<div class="acciones">
+        <button class="btn" data-act="copiar-compra">Copiar como texto</button>
+        <button class="btn btn-fantasma" data-act="reiniciar-compra">Empezar de nuevo</button>
+      </div>
+      <p class="vacio-msg">Tocá el cuadrito una vez para <b>lo compré</b> y otra para
+        <b>no lo conseguí</b>. Lo que no conseguís es lo único que cambia el plan de la
+        semana. Si comprás otra cantidad, escribila y queda cargada esa.</p>`;
+
+    return h + extrasCompras(ahora, plan);
   }
-  const mc = (n, t, s, id) => `<button class="mc" data-lista="${id}">
-      <span class="num">${n}</span><span class="t"><b>${esc(t)}</b><small>${esc(s)}</small></span><span class="fl">›</span></button>`;
+
+  function fila(f) {
+    const i = f.item;
+    const marca = f.estado === 'ok' ? 'ok' : f.estado === 'no' ? 'no' : '';
+    const unidad = i.un === 'u' ? 'u' : (i.un || '');
+    const editable = i.cant !== null;
+    return `<div class="fila ${marca}" data-tipo="${f.tipo}" data-clave="${f.clave}" data-item="${esc(i.id)}">
+        <button class="caja" data-act="marcar-item">${marca === 'ok' ? '✓' : marca === 'no' ? '✕' : ''}</button>
+        <span class="txt">${esc(i.nombre)}${f.origen || i.envase || i.nota
+          ? '<small>' + esc([f.origen, i.envase, i.nota].filter(Boolean).join(' · ')) + '</small>' : ''}</span>
+        ${editable
+          ? `<input class="cant-input" type="number" inputmode="decimal" step="any" min="0"
+                    value="${f.cant}" data-act="cant"><span class="un">${esc(unidad)}</span>`
+          : `<span class="un"></span>`}
+      </div>`;
+  }
+
+  /* Debajo de la compra: lo que falta y el fraccionado, que no son compras
+     fijas sino cosas que se calculan. */
+  function extrasCompras(ahora, plan) {
+    const falta = Inventario.loQueFalta(plan.inicio, ahora);
+    return `<div class="seccion"><h2>Además</h2></div>
+      <div class="menu-compras">
+        ${mc('Lo que falta', falta.length
+            ? falta.length + ' ' + (falta.length === 1 ? 'ítem' : 'ítems') + ' para las comidas que quedan'
+            : 'No falta nada', 'falta')}
+        ${mc('Fraccionado', 'Porcionar y freezar apenas volvés', 'fraccionado')}
+      </div>`;
+  }
+
+  const mc = (t, s, id) => `<button class="mc" data-lista="${id}">
+      <span class="t"><b>${esc(t)}</b><small>${esc(s)}</small></span><span class="fl">›</span></button>`;
 
   /* Arma una lista tildable a partir de ítems {id, nombre, cant, grupo, nota} */
   function lista(idLista, titulo, sub, grupos, extra) {
     const tildes = Estado.tildes(idLista);
+    const todos = [];
     let h = `<button class="btn btn-fantasma" data-act="volver-compras" style="margin-bottom:10px">‹ Compras</button>
       <div class="seccion" style="margin-top:0"><h2>${esc(titulo)}</h2></div>`;
     if (sub) h += `<p class="vacio-msg" style="margin-top:-6px">${esc(sub)}</p>`;
-    const todos = [];
     h += `<div class="card">`;
     grupos.forEach(g => {
       if (!g.items.length) return;
@@ -347,7 +417,6 @@ const UI = (() => {
           <span class="cant">${esc(i.cant || '')}</span></button>`;
       });
     });
-    // un solo botón que alterna: si falta algo, marca todo; si está todo, lo suelta
     const completa = todos.length > 0 && todos.every(id => tildes[id]);
     h += `</div>
       <div class="acciones">
@@ -360,53 +429,6 @@ const UI = (() => {
 
   function porComercio(items) {
     return COMERCIOS.map(c => ({ nombre: c, items: items.filter(i => i.comercio === c) }));
-  }
-
-  function listaSemanal(ahora) {
-    const plan = planDe(ahora);
-    const compra = Inventario.compraDe(plan.inicio);
-    const items = compra.map(i => ({
-      id: i.id, nombre: i.nombre, cant: cantidad(i), comercio: i.comercio,
-      nota: i.soloSiToca ? 'toca esta semana' : ''
-    }));
-    const kg = compra.filter(i => i.comercio === 'verdulería' && i.un === 'g')
-      .reduce((a, i) => a + i.cant, 0);
-    const sub = plan.arranque
-      ? 'Primera compra: solo diez comidas, de lunes a viernes. Verdulería ~' + U.g(kg)
-      : 'Sábado a la mañana. Verdulería ~' + U.g(kg);
-    return lista('semanal:' + plan.inicio, plan.arranque ? 'Primera compra' : 'Compra semanal',
-      sub, porComercio(items));
-  }
-
-  function listaHojas(ahora) {
-    const plan = planDe(ahora);
-    const items = COMPRA_HOJAS.map(i => ({ id: i.id, nombre: i.nombre, cant: cantidad(i), comercio: i.comercio }));
-    return lista('hojas:' + plan.inicio, 'Reposición de hojas',
-      'Miércoles · sostiene las ensaladas del jueves y el viernes. La acelga y la lechuga entran solo acá', porComercio(items),
-      `<div class="acciones"><button class="btn btn-full ${Estado.hojas(plan.inicio) ? '' : 'btn-acento'}" data-act="hojas">${Estado.hojas(plan.inicio) ? 'Reposición hecha' : 'Ya la compré'}</button></div>`);
-  }
-
-  function listaAlacena(ahora) {
-    const fecha = FECHAS_ALACENA.find(f => U.parse(f) >= U.medianoche(ahora)) || FECHAS_ALACENA[FECHAS_ALACENA.length - 1];
-    const pend = COMPRA_ALACENA.filter(i => !(i.unaVez && Estado.unaVezHecho(i.id)));
-    const nombres = [];
-    pend.forEach(i => { if (nombres.indexOf(i.grupo) < 0) nombres.push(i.grupo); });
-    const grupos = nombres.map(g => ({
-      nombre: g,
-      items: pend.filter(i => i.grupo === g).map(i => ({ id: i.id, nombre: i.nombre, cant: i.cant, nota: i.nota || (i.unaVez ? 'una sola vez' : '') }))
-    }));
-    const ocultos = COMPRA_ALACENA.filter(i => i.unaVez && Estado.unaVezHecho(i.id)).length;
-    const hecha = Estado.alacenaHecha(fecha);
-    return lista('alacena:' + fecha, 'Compra de alacena',
-      U.fechaLarga(U.parse(fecha)) + ' · cada 3 semanas' + (ocultos ? ' · ' + ocultos + ' ítems de una sola vez ya comprados' : ''),
-      grupos,
-      `<p class="vacio-msg">Los ítems marcados <b>una sola vez</b> son los que no se
-        reponen todos los ciclos: al registrar la compra desaparecen de esta lista y
-        quedan en Inventario, donde podés marcarlos como agotados cuando se acaben.</p>
-      <div class="acciones">
-        <button class="btn btn-full ${hecha ? '' : 'btn-acento'}" data-act="alacena-hecha" data-fecha="${fecha}">
-          ${hecha ? 'Compra registrada · volver a registrarla' : 'Ya compré la alacena · llenar la despensa'}</button>
-      </div>`);
   }
 
   function listaFalta(ahora) {
@@ -446,48 +468,25 @@ const UI = (() => {
       [{ nombre: 'tareas', items }]);
   }
 
-  /* Texto plano para copiar. */
-  function textoLista(idLista) {
-    const cont = document.querySelectorAll('#vista .comercio, #vista .check');
+  const SALTO = String.fromCharCode(10);
+
+  /* Texto plano para copiar, tanto de una lista como de la pantalla de compras. */
+  function textoLista() {
     const out = [];
-    cont.forEach(el => {
-      if (el.classList.contains('comercio')) { out.push('', el.textContent.toUpperCase()); }
-      else {
-        const t = el.querySelector('.txt').childNodes[0].textContent.trim();
-        const c = el.querySelector('.cant').textContent.trim();
-        out.push((el.classList.contains('on') ? '[x] ' : '[ ] ') + t + (c ? ' — ' + c : ''));
-      }
+    document.querySelectorAll('#vista .comercio, #vista .check, #vista .fila').forEach(el => {
+      if (el.classList.contains('comercio')) { out.push('', el.textContent.trim().toUpperCase()); return; }
+      const t = el.querySelector('.txt').childNodes[0].textContent.trim();
+      const inp = el.querySelector('.cant-input');
+      const c = inp ? inp.value + ' ' + el.querySelector('.un').textContent.trim()
+                    : (el.querySelector('.cant') || { textContent: '' }).textContent.trim();
+      const marca = el.classList.contains('ok') || el.classList.contains('on') ? '[x] '
+                  : el.classList.contains('no') ? '[-] ' : '[ ] ';
+      out.push(marca + t + (c.trim() ? ' — ' + c.trim() : ''));
     });
-    return out.join('\n').trim();
+    return out.join(SALTO).trim();
   }
 
   /* ================= hojas modales ================= */
-  function hojaCompra(inicio) {
-    const falta = new Set(Estado.faltantes(inicio));
-    const compra = Inventario.compraDe(inicio);
-    const cuantas = Generador.planSemana(inicio).slots.length;
-    let h = `<h2>Ya compré</h2>
-      <p class="sub">Destildá lo que no conseguiste. Con eso se generan las ${cuantas} comidas de la semana.</p>`;
-    COMERCIOS.forEach(c => {
-      const items = compra.filter(i => i.comercio === c && i.clave);
-      if (!items.length) return;
-      h += `<div class="comercio">${esc(c)}</div>`;
-      items.forEach(i => {
-        const on = !falta.has(i.id);
-        h += `<button class="check ${on ? 'on' : ''}" data-conseguido="${i.id}">
-          <span class="caja">${on ? '✓' : ''}</span>
-          <span class="txt">${esc(i.nombre)}</span>
-          <span class="cant">${esc(cantidad(i))}</span></button>`;
-      });
-    });
-    h += `<div class="acciones" style="margin-top:18px">
-      <button class="btn" data-act="conseguido-todo" data-valor="1">Conseguí todo</button>
-      <button class="btn btn-fantasma" data-act="conseguido-todo" data-valor="0">Ninguno</button>
-      </div>
-      <div class="acciones">
-      <button class="btn btn-acento btn-full" data-act="confirmar-compra" data-semana="${inicio}">Generar la semana</button></div>`;
-    return h;
-  }
 
   function hojaCambiar(inicio, slot) {
     const alt = Generador.alternativas(inicio, slot);
@@ -514,7 +513,7 @@ const UI = (() => {
       </div>`;
   }
 
-  return { hoy, proximos, inventario, comprasMenu, listaSemanal, listaHojas, listaAlacena,
-           listaFalta, listaFraccionado, textoLista, hojaCompra, hojaCambiar, hojaEmergencia,
+  return { hoy, proximos, inventario, comprasMenu, listaFalta, listaFraccionado,
+           textoLista, hojaCambiar, hojaEmergencia,
            planDe, semanaDe, slotsDe, slotDe, esc };
 })();

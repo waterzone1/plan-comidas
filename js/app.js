@@ -15,6 +15,23 @@ const App = (() => {
 
   const TITULOS = { hoy: 'Hoy', proximos: 'Próximos días', inventario: 'Inventario', compras: 'Compras' };
 
+  /* Cuándo se subió esta versión de los archivos. Sirve para saber de un
+     vistazo si el teléfono está mostrando algo viejo. */
+  let sello = '';
+  function mostrarSello() {
+    const el = document.getElementById('sello');
+    if (el && sello) el.textContent = sello;
+  }
+  fetch('js/app.js', { method: 'HEAD', cache: 'no-cache' })
+    .then(r => {
+      const lm = r.headers.get('last-modified');
+      if (!lm) return;
+      const d = new Date(lm);
+      sello = d.getDate() + '/' + (d.getMonth() + 1) + ' ' +
+              String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      mostrarSello();
+    }).catch(() => {});
+
   function render() {
     ahora = new Date();
     document.getElementById('cab-fecha').textContent = U.fechaLarga(ahora);
@@ -26,14 +43,12 @@ const App = (() => {
     else if (tab === 'proximos') h = UI.proximos(ahora);
     else if (tab === 'inventario') h = UI.inventario(ahora);
     else if (tab === 'compras') {
-      if (subvista === 'semanal') h = UI.listaSemanal(ahora);
-      else if (subvista === 'hojas') h = UI.listaHojas(ahora);
-      else if (subvista === 'alacena') h = UI.listaAlacena(ahora);
-      else if (subvista === 'falta') h = UI.listaFalta(ahora);
+      if (subvista === 'falta') h = UI.listaFalta(ahora);
       else if (subvista === 'fraccionado') h = UI.listaFraccionado(ahora);
       else h = UI.comprasMenu(ahora);
     }
     vista.innerHTML = h;
+    mostrarSello();
     window.scrollTo(0, 0);
   }
 
@@ -91,37 +106,6 @@ const App = (() => {
   hoja.addEventListener('click', e => {
     if (e.target.dataset.cerrar || e.target.closest('[data-cerrar]')) { cerrarHoja(); return; }
 
-    const conseguido = e.target.closest('[data-conseguido]');
-    if (conseguido) {
-      conseguido.classList.toggle('on');
-      conseguido.querySelector('.caja').textContent = conseguido.classList.contains('on') ? '✓' : '';
-      return;
-    }
-
-    const todos = e.target.closest('[data-act="conseguido-todo"]');
-    if (todos) {
-      const prender = todos.dataset.valor === '1';
-      panel.querySelectorAll('[data-conseguido]').forEach(el => {
-        el.classList.toggle('on', prender);
-        el.querySelector('.caja').textContent = prender ? '✓' : '';
-      });
-      return;
-    }
-
-    const confirmar = e.target.closest('[data-act="confirmar-compra"]');
-    if (confirmar) {
-      const faltantes = [];
-      panel.querySelectorAll('[data-conseguido]').forEach(el => {
-        if (!el.classList.contains('on')) faltantes.push(el.dataset.conseguido);
-      });
-      Estado.registrarCompra(confirmar.dataset.semana, faltantes);
-      cerrarHoja();
-      tab = 'hoy'; subvista = null;
-      refrescar();
-      aviso('Semana generada' + (faltantes.length ? ' sin ' + faltantes.length + ' ítem(s)' : ''));
-      return;
-    }
-
     const elegir = e.target.closest('[data-elegir]');
     if (elegir && App._slot) {
       const { semana, slot } = App._slot;
@@ -129,6 +113,16 @@ const App = (() => {
       aplicarCambio(semana, slot, Number(elegir.dataset.elegir));
       aviso('Cambiado. Se reacomodó de acá en adelante');
     }
+  });
+
+  /* La cantidad se guarda mientras se escribe. Marcar una cantidad distinta
+     ya cuenta como haber comprado ese item. */
+  vista.addEventListener('change', e => {
+    const inp = e.target.closest('[data-act="cant"]');
+    if (!inp) return;
+    const f = inp.closest('.fila');
+    Estado.setCantidad(f.dataset.tipo, f.dataset.clave, f.dataset.item, inp.value);
+    refrescar();
   });
 
   vista.addEventListener('click', e => {
@@ -147,13 +141,48 @@ const App = (() => {
       return;
     }
 
+    // --- pantalla de compras ---
+    const chip = t.closest('[data-fuente]');
+    if (chip) {
+      Estado.tildar('fuentes', chip.dataset.fuente, !chip.classList.contains('on'));
+      render();
+      return;
+    }
+
     const btn = t.closest('[data-act]');
     if (!btn) return;
     const act = btn.dataset.act;
 
+    if (act === 'marcar-item') {
+      const f = btn.closest('.fila');
+      const estado = f.classList.contains('ok') ? 'no' : f.classList.contains('no') ? '' : 'ok';
+      Estado.marcarItem(f.dataset.tipo, f.dataset.clave, f.dataset.item, estado);
+      refrescar();
+      return;
+    }
+    if (act === 'marcar-seccion') {
+      const valor = btn.dataset.valor || '';
+      btn.dataset.filas.split(';').forEach(r => {
+        const [tipo, clave, id] = r.split('|');
+        Estado.marcarItem(tipo, clave, id, valor);
+      });
+      refrescar();
+      return;
+    }
+    if (act === 'copiar-compra') { copiar(UI.textoLista()); return; }
+    if (act === 'reiniciar-compra') {
+      if (!confirm('Se borra lo marcado de esta compra. El plan no se toca.')) return;
+      const sem = UI.semanaDe(new Date());
+      Estado.limpiarRegistro('semanal', sem);
+      Estado.limpiarRegistro('hojas', sem);
+      Estado.limpiarRegistro('alacena', Inventario.proximaAlacena(new Date()));
+      refrescar();
+      return;
+    }
+
     if (act === 'volver-compras') { subvista = null; render(); return; }
 
-    if (act === 'copiar') { copiar(UI.textoLista(btn.dataset.lista)); return; }
+    if (act === 'copiar') { copiar(UI.textoLista()); return; }
     if (act === 'tildar-todo') {
       const prender = btn.dataset.valor === '1';
       if (!prender) Estado.limpiarTildes(btn.dataset.lista);
@@ -162,24 +191,7 @@ const App = (() => {
       return;
     }
 
-    if (act === 'ya-compre') {
-      abrirHoja(UI.hojaCompra(UI.semanaDe(new Date())));
-      return;
-    }
-    if (act === 'hojas') {
-      const sem = UI.semanaDe(new Date());
-      Estado.registrarHojas(sem, !Estado.hojas(sem));
-      refrescar();
-      return;
-    }
-    if (act === 'alacena-hecha') {
-      Estado.marcarAlacena(btn.dataset.fecha);
-      Estado.marcarUnaVez(COMPRA_ALACENA.filter(i => i.unaVez).map(i => i.id));
-      tab = 'inventario'; subvista = null;
-      refrescar();
-      aviso('Despensa cargada. Lo de una sola vez ya no vuelve a aparecer');
-      return;
-    }
+    if (act === 'ya-compre') { ir('compras'); return; }
     if (act === 'reponer') { Estado.reponerUnaVez(btn.dataset.id); render(); aviso('Vuelve a la lista de alacena'); return; }
     if (act === 'borrar') {
       if (confirm('¿Borrar compras, cambios y tildes? El plan se recalcula desde cero.')) {
@@ -223,9 +235,26 @@ const App = (() => {
   setInterval(chequearDia, 60000);
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    // si ya había un service worker y aparece uno nuevo, la app se recarga
+    // sola una vez: así una versión nueva entra sin cerrar y abrir a mano
+    const habia = !!navigator.serviceWorker.controller;
+    let recargando = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!habia || recargando) return;
+      recargando = true;
+      location.reload();
+    });
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').then(reg => {
+        // al volver a la app, fijarse si hay versión nueva
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) reg.update().catch(() => {});
+        });
+      }).catch(() => {});
+    });
   }
 
   render();
+  mostrarSello();
   return { render, refrescar, ir };
 })();

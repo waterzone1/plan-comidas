@@ -69,29 +69,29 @@ const Inventario = (() => {
     }).filter(i => i.cant === null || i.cant > 0);
   }
 
-  /* ¿La heladera de esta semana tiene algo?
-     Al principio de todo está vacía: recién se llena cuando se registra la
-     primera compra. De ahí en adelante vale la regla de siempre: si una
-     semana me olvido de apretar "ya compré", se asume la compra de siempre
-     y la app sigue andando. */
+  /* ¿Se marcó algo de la compra de esta semana? */
   function heladeraCargada(inicio) {
-    if (Estado.compra(inicio)) return true;
-    return Object.keys(Estado.get().compras).length > 0;
+    return !!Estado.compra(inicio) || !!Estado.hojas(inicio);
+  }
+
+  /* Suma al inventario lo que se marcó como comprado, con la cantidad que se
+     haya cargado. Lo que está sin marcar no entra: el inventario refleja lo
+     que confirmé, no lo que la lista suponía. */
+  function sumar(hay, items, registro) {
+    items.forEach(i => {
+      if (!i.clave || i.cant === null) return;
+      if (!(i.clave in hay)) hay[i.clave] = 0;
+      if (!registro || registro.estado[i.id] !== 'ok') return;
+      hay[i.clave] += (i.id in registro.cant) ? Number(registro.cant[i.id]) : i.cant;
+    });
+    return hay;
   }
 
   /* Lo que entró esta semana, ítem por ítem. */
   function entradas(inicio) {
-    if (!heladeraCargada(inicio)) return {};
-    const falta = new Set(Estado.faltantes(inicio));
     const hay = {};
-    compraDe(inicio).forEach(i => {
-      if (!i.clave || i.cant === null) return;
-      if (falta.has(i.id)) { hay[i.clave] = (hay[i.clave] || 0); return; }
-      hay[i.clave] = (hay[i.clave] || 0) + i.cant;
-    });
-    if (Estado.hojas(inicio)) {
-      COMPRA_HOJAS.forEach(i => { hay[i.clave] = (hay[i.clave] || 0) + i.cant; });
-    }
+    sumar(hay, compraDe(inicio), Estado.compra(inicio));
+    sumar(hay, COMPRA_HOJAS, Estado.hojas(inicio));
     return hay;
   }
 
@@ -196,7 +196,7 @@ const Inventario = (() => {
     ahora = ahora || new Date();
     // manda lo que se registró, no lo que estaba planeado: si marqué la
     // compra, la despensa está llena aunque la fecha prevista sea posterior
-    const hechas = Estado.get().alacena.slice().sort();
+    const hechas = Object.keys(Estado.get().alacena).sort();
     const yaFue = hechas.filter(f => U.parse(f) <= U.medianoche(ahora));
     if (yaFue.length) return yaFue[yaFue.length - 1];
     if (hechas.length) return hechas[0];
@@ -204,10 +204,17 @@ const Inventario = (() => {
     return previstas.length ? previstas[previstas.length - 1] : FECHAS_ALACENA[0];
   }
 
+  /* La próxima compra de alacena, o la última si ya pasaron todas. */
+  function proximaAlacena(ahora) {
+    ahora = ahora || new Date();
+    return FECHAS_ALACENA.find(f => U.parse(f) >= U.medianoche(ahora)) ||
+           FECHAS_ALACENA[FECHAS_ALACENA.length - 1];
+  }
+
   /* Antes de la primera compra de alacena registrada la despensa está vacía:
      la app arranca sin nada cargado. */
   function despensaCargada() {
-    return Estado.get().alacena.length > 0;
+    return Estado.hayAlgunaAlacena();
   }
 
   function despensa(inicio, ahora) {
@@ -229,9 +236,13 @@ const Inventario = (() => {
         destino[b.clave] = (destino[b.clave] || 0) + b.cant;
       });
     }
+    // lo que entró de despensa sale de la compra de alacena registrada
+    const entro = {};
+    if (cargada) sumar(entro, COMPRA_ALACENA, Estado.alacena(cicloAlacena(ahora)));
+
     return Object.keys(DESPENSA).map(k => {
       const d = DESPENSA[k];
-      const total = cargada ? d.inicial : 0;
+      const total = entro[k] || 0;
       const queda = Math.max(0, total - (gastado[k] || 0));
       return {
         clave: k, nombre: d.nombre, un: d.un, total,
@@ -277,6 +288,27 @@ const Inventario = (() => {
   /* ¿Ya arrancó el plan? Antes del arranque no hay nada que mostrar. */
   const arrancado = (ahora) => U.medianoche(ahora || new Date()) >= U.parse(ARRANQUE);
 
+  /* Las tres compras que se pueden registrar, con sus ítems y lo que ya se
+     registró de cada una. Es lo que dibuja la pantalla de Compras. */
+  function fuentes(inicio, ahora) {
+    ahora = ahora || new Date();
+    const fecha = proximaAlacena(ahora);
+    return [
+      { tipo: 'semanal', clave: inicio, nombre: 'Compra semanal',
+        cuando: Generador.planSemana(inicio).arranque ? 'la primera, el lunes' : 'sábado',
+        items: compraDe(inicio).filter(i => i.clave),
+        registro: Estado.compra(inicio) },
+      { tipo: 'hojas', clave: inicio, nombre: 'Reposición de hojas',
+        cuando: 'miércoles',
+        items: COMPRA_HOJAS,
+        registro: Estado.hojas(inicio) },
+      { tipo: 'alacena', clave: fecha, nombre: 'Alacena',
+        cuando: U.fechaLarga(U.parse(fecha)),
+        items: COMPRA_ALACENA.filter(i => !(i.unaVez && Estado.unaVezHecho(i.id))),
+        registro: Estado.alacena(fecha) }
+    ];
+  }
+
   return { consumo, entradas, compraDe, heladeraCargada, estado, perecederos, loQueFalta, despensa, despensaCargada,
-           cicloAlacena, porcionesSueltas, compensacion, momento, yaPaso, arrancado };
+           cicloAlacena, proximaAlacena, fuentes, porcionesSueltas, compensacion, momento, yaPaso, arrancado };
 })();
