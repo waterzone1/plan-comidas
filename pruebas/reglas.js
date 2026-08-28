@@ -224,6 +224,33 @@ ok(Inventario.despensa(semUno, U.parse(ARRANQUE)).every(d => d.total > 0), 'todo
 Estado.borrarTodo();
 Generador.limpiarCache();
 
+console.log('== la heladera arranca vacía ==');
+Estado.borrarTodo();
+Generador.limpiarCache();
+const dia1 = U.parse(ARRANQUE);
+const invVacio = Inventario.estado(semUno, dia1);
+ok(!Inventario.heladeraCargada(semUno), 'sin compra registrada, la heladera está vacía');
+ok(invVacio.items.every(i => i.total === 0 && i.queda === 0), 'ningún ítem tiene stock');
+ok(invVacio.items.length > 0, 'igual se listan los ítems que hacen falta');
+ok(Inventario.perecederos(semUno, dia1).length === 0, 'nada por vencer si no hay nada');
+ok(Inventario.loQueFalta(semUno, dia1).length > 0, 'todo aparece como faltante');
+// al registrar la compra se llena
+Estado.registrarCompra(semUno, []);
+Generador.limpiarCache();
+const invLleno = Inventario.estado(semUno, dia1);
+ok(Inventario.heladeraCargada(semUno), 'después de apretar "ya compré" la heladera está cargada');
+ok(invLleno.items.find(i => i.clave === 'pollo').total === 800, 'entraron los 800 g de pollo de la primera semana');
+// y se va consumiendo comida por comida
+const trasAlmuerzo = Inventario.estado(semUno, new Date(dia1.getFullYear(), dia1.getMonth(), dia1.getDate(), 14, 0));
+const trasCena = Inventario.estado(semUno, new Date(dia1.getFullYear(), dia1.getMonth(), dia1.getDate(), 22, 0));
+ok(trasCena.items.find(i => i.clave === 'pollo').queda < trasAlmuerzo.items.find(i => i.clave === 'pollo').queda,
+   'la cena de pollo descuenta del inventario');
+// una semana posterior sin registrar vuelve a asumir la compra de siempre
+ok(Inventario.heladeraCargada('2026-09-05'), 'si me olvido una semana, se asume la compra de siempre');
+Estado.borrarTodo();
+Generador.limpiarCache();
+ok(!Inventario.heladeraCargada('2026-09-05'), 'pero sin ninguna compra registrada, sigue vacía');
+
 console.log('== antes del arranque no hay plan ==');
 ok(!Inventario.arrancado(U.sumarDias(U.parse(ARRANQUE), -1)), 'el día anterior todavía no arrancó');
 ok(Inventario.arrancado(U.parse(ARRANQUE)), 'el día del arranque sí');

@@ -259,6 +259,11 @@ const UI = (() => {
       <button class="btn ${hojas ? '' : 'btn-acento'}" data-act="hojas">${hojas ? 'Hecha' : 'Ya la hice'}</button>
     </div>`;
 
+    if (!Inventario.heladeraCargada(plan.inicio)) {
+      h += `<div class="nota-card info">La heladera está vacía. Se llena cuando aprietes
+            <b>Ya compré</b>, y de ahí en adelante se va descontando comida por comida.</div>`;
+    }
+
     const grupos = [
       ['Proteínas', est.items.filter(i => i.tipo === 'proteina')],
       ['Verduras', est.items.filter(i => i.tipo === 'verdura')],

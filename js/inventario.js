@@ -69,8 +69,19 @@ const Inventario = (() => {
     }).filter(i => i.cant === null || i.cant > 0);
   }
 
+  /* ¿La heladera de esta semana tiene algo?
+     Al principio de todo está vacía: recién se llena cuando se registra la
+     primera compra. De ahí en adelante vale la regla de siempre: si una
+     semana me olvido de apretar "ya compré", se asume la compra de siempre
+     y la app sigue andando. */
+  function heladeraCargada(inicio) {
+    if (Estado.compra(inicio)) return true;
+    return Object.keys(Estado.get().compras).length > 0;
+  }
+
   /* Lo que entró esta semana, ítem por ítem. */
   function entradas(inicio) {
+    if (!heladeraCargada(inicio)) return {};
     const falta = new Set(Estado.faltantes(inicio));
     const hay = {};
     compraDe(inicio).forEach(i => {
@@ -260,6 +271,6 @@ const Inventario = (() => {
   /* ¿Ya arrancó el plan? Antes del arranque no hay nada que mostrar. */
   const arrancado = (ahora) => U.medianoche(ahora || new Date()) >= U.parse(ARRANQUE);
 
-  return { consumo, entradas, compraDe, estado, perecederos, loQueFalta, despensa, despensaCargada,
+  return { consumo, entradas, compraDe, heladeraCargada, estado, perecederos, loQueFalta, despensa, despensaCargada,
            cicloAlacena, porcionesSueltas, compensacion, momento, yaPaso, arrancado };
 })();
