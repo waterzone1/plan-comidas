@@ -32,7 +32,10 @@ const App = (() => {
       mostrarSello();
     }).catch(() => {});
 
-  function render() {
+  /* Redibuja sin moverte de donde estabas. Solo se vuelve arriba cuando
+     cambiás de pantalla, no cuando marcás algo en una lista larga. */
+  function render(arriba) {
+    const y = window.scrollY;
     ahora = new Date();
     document.getElementById('cab-fecha').textContent = U.fechaLarga(ahora);
     document.getElementById('cab-titulo').textContent = TITULOS[tab];
@@ -49,12 +52,12 @@ const App = (() => {
     }
     vista.innerHTML = h;
     mostrarSello();
-    window.scrollTo(0, 0);
+    window.scrollTo(0, arriba ? 0 : y);
   }
 
-  function refrescar() { Generador.limpiarCache(); render(); }
+  function refrescar(arriba) { Generador.limpiarCache(); render(arriba); }
 
-  function ir(t) { tab = t; subvista = null; render(); }
+  function ir(t) { tab = t; subvista = null; render(true); }
 
   function aviso(txt) {
     avisoEl.textContent = txt;
@@ -121,7 +124,7 @@ const App = (() => {
     const inp = e.target.closest('[data-act="cant"]');
     if (!inp) return;
     Estado.setCantidad(inp.closest('.fila').dataset.item, inp.value);
-    refrescar();
+    render();
   });
 
   vista.addEventListener('click', e => {
@@ -132,7 +135,7 @@ const App = (() => {
     if (mc && mc.classList.contains('mc')) {
       tab = 'compras';
       subvista = mc.dataset.lista === 'compras' ? null : mc.dataset.lista;
-      render();
+      render(true);
       return;
     }
 
@@ -149,19 +152,19 @@ const App = (() => {
     if (!btn) return;
     const act = btn.dataset.act;
 
-    if (act === 'ver-falta') { Estado.tildar('compras', 'todo', false); render(); return; }
-    if (act === 'ver-todo')  { Estado.tildar('compras', 'todo', true);  render(); return; }
+    if (act === 'ver-falta') { Estado.tildar('compras', 'todo', false); render(true); return; }
+    if (act === 'ver-todo')  { Estado.tildar('compras', 'todo', true);  render(true); return; }
 
     if (act === 'marcar-item') {
       const f = btn.closest('.fila');
       const estado = f.classList.contains('ok') ? 'no' : f.classList.contains('no') ? '' : 'ok';
       Estado.marcarItem(f.dataset.item, estado);
-      refrescar();
+      render();
       return;
     }
     if (act === 'marcar-seccion') {
       Estado.marcarVarios(btn.dataset.filas.split(';'), btn.dataset.valor || '');
-      refrescar();
+      render();
       return;
     }
     if (act === 'aceptar-compra') {
@@ -175,11 +178,11 @@ const App = (() => {
     if (act === 'copiar-compra') { copiar(UI.textoFalta()); return; }
     if (act === 'reiniciar-compra') {
       Estado.limpiarBorrador();
-      refrescar();
+      render();
       return;
     }
 
-    if (act === 'volver-compras') { subvista = null; render(); return; }
+    if (act === 'volver-compras') { subvista = null; render(true); return; }
 
     if (act === 'copiar') { copiar(UI.textoLista()); return; }
     if (act === 'tildar-todo') {
@@ -191,7 +194,7 @@ const App = (() => {
     }
 
     if (act === 'ya-compre') { ir('compras'); return; }
-    if (act === 'reponer') { Inventario.agotar(btn.dataset.id, new Date()); refrescar(); aviso('Vuelve a la lista de compras'); return; }
+    if (act === 'reponer') { Inventario.agotar(btn.dataset.id, new Date()); render(); aviso('Vuelve a la lista de compras'); return; }
     if (act === 'borrar') {
       if (confirm('¿Borrar compras, cambios y tildes? El plan se recalcula desde cero.')) {
         Estado.borrarTodo(); refrescar(); aviso('Listo, arranca de cero');
