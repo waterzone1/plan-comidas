@@ -333,11 +333,13 @@ const UI = (() => {
     let h = `<button class="btn btn-fantasma" data-act="volver-compras" style="margin-bottom:10px">‹ Compras</button>
       <div class="seccion" style="margin-top:0"><h2>${esc(titulo)}</h2></div>`;
     if (sub) h += `<p class="vacio-msg" style="margin-top:-6px">${esc(sub)}</p>`;
+    const todos = [];
     h += `<div class="card">`;
     grupos.forEach(g => {
       if (!g.items.length) return;
       h += `<div class="comercio">${esc(g.nombre)}</div>`;
       g.items.forEach(i => {
+        todos.push(i.id);
         const on = !!tildes[i.id];
         h += `<button class="check ${on ? 'on' : ''}" data-tildar="${esc(i.id)}" data-lista="${idLista}">
           <span class="caja">${on ? '✓' : ''}</span>
@@ -345,10 +347,13 @@ const UI = (() => {
           <span class="cant">${esc(i.cant || '')}</span></button>`;
       });
     });
+    // un solo botón que alterna: si falta algo, marca todo; si está todo, lo suelta
+    const completa = todos.length > 0 && todos.every(id => tildes[id]);
     h += `</div>
       <div class="acciones">
+        <button class="btn" data-act="tildar-todo" data-lista="${idLista}" data-valor="${completa ? '0' : '1'}">
+          ${completa ? 'Destildar todo' : 'Marcar todo'}</button>
         <button class="btn btn-acento" data-act="copiar" data-lista="${idLista}">Copiar como texto</button>
-        <button class="btn btn-fantasma" data-act="destildar" data-lista="${idLista}">Destildar todo</button>
       </div>`;
     return h + (extra || '');
   }
@@ -391,10 +396,17 @@ const UI = (() => {
       items: pend.filter(i => i.grupo === g).map(i => ({ id: i.id, nombre: i.nombre, cant: i.cant, nota: i.nota || (i.unaVez ? 'una sola vez' : '') }))
     }));
     const ocultos = COMPRA_ALACENA.filter(i => i.unaVez && Estado.unaVezHecho(i.id)).length;
+    const hecha = Estado.alacenaHecha(fecha);
     return lista('alacena:' + fecha, 'Compra de alacena',
       U.fechaLarga(U.parse(fecha)) + ' · cada 3 semanas' + (ocultos ? ' · ' + ocultos + ' ítems de una sola vez ya comprados' : ''),
       grupos,
-      `<div class="acciones"><button class="btn btn-acento btn-full" data-act="alacena-hecha" data-fecha="${fecha}">Ya compré la alacena</button></div>`);
+      `<p class="vacio-msg">Los ítems marcados <b>una sola vez</b> son los que no se
+        reponen todos los ciclos: al registrar la compra desaparecen de esta lista y
+        quedan en Inventario, donde podés marcarlos como agotados cuando se acaben.</p>
+      <div class="acciones">
+        <button class="btn btn-full ${hecha ? '' : 'btn-acento'}" data-act="alacena-hecha" data-fecha="${fecha}">
+          ${hecha ? 'Compra registrada · volver a registrarla' : 'Ya compré la alacena · llenar la despensa'}</button>
+      </div>`);
   }
 
   function listaFalta(ahora) {
@@ -469,6 +481,10 @@ const UI = (() => {
       });
     });
     h += `<div class="acciones" style="margin-top:18px">
+      <button class="btn" data-act="conseguido-todo" data-valor="1">Conseguí todo</button>
+      <button class="btn btn-fantasma" data-act="conseguido-todo" data-valor="0">Ninguno</button>
+      </div>
+      <div class="acciones">
       <button class="btn btn-acento btn-full" data-act="confirmar-compra" data-semana="${inicio}">Generar la semana</button></div>`;
     return h;
   }

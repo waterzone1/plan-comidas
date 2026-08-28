@@ -98,6 +98,16 @@ const App = (() => {
       return;
     }
 
+    const todos = e.target.closest('[data-act="conseguido-todo"]');
+    if (todos) {
+      const prender = todos.dataset.valor === '1';
+      panel.querySelectorAll('[data-conseguido]').forEach(el => {
+        el.classList.toggle('on', prender);
+        el.querySelector('.caja').textContent = prender ? '✓' : '';
+      });
+      return;
+    }
+
     const confirmar = e.target.closest('[data-act="confirmar-compra"]');
     if (confirmar) {
       const faltantes = [];
@@ -144,7 +154,13 @@ const App = (() => {
     if (act === 'volver-compras') { subvista = null; render(); return; }
 
     if (act === 'copiar') { copiar(UI.textoLista(btn.dataset.lista)); return; }
-    if (act === 'destildar') { Estado.limpiarTildes(btn.dataset.lista); render(); return; }
+    if (act === 'tildar-todo') {
+      const prender = btn.dataset.valor === '1';
+      if (!prender) Estado.limpiarTildes(btn.dataset.lista);
+      else vista.querySelectorAll('[data-tildar]').forEach(el => Estado.tildar(btn.dataset.lista, el.dataset.tildar, true));
+      render();
+      return;
+    }
 
     if (act === 'ya-compre') {
       abrirHoja(UI.hojaCompra(UI.semanaDe(new Date())));
@@ -159,8 +175,9 @@ const App = (() => {
     if (act === 'alacena-hecha') {
       Estado.marcarAlacena(btn.dataset.fecha);
       Estado.marcarUnaVez(COMPRA_ALACENA.filter(i => i.unaVez).map(i => i.id));
-      render();
-      aviso('Alacena registrada. Los ítems de una sola vez no vuelven a aparecer');
+      tab = 'inventario'; subvista = null;
+      refrescar();
+      aviso('Despensa cargada. Lo de una sola vez ya no vuelve a aparecer');
       return;
     }
     if (act === 'reponer') { Estado.reponerUnaVez(btn.dataset.id); render(); aviso('Vuelve a la lista de alacena'); return; }

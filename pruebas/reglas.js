@@ -221,6 +221,18 @@ ok(despVacia.some(d => d.falta > 0), 'lo que hace falta esta semana aparece como
 Estado.marcarAlacena(api.FECHAS_ALACENA[0]);
 ok(Inventario.despensaCargada(U.parse(ARRANQUE)), 'después de registrar la compra, la despensa tiene stock');
 ok(Inventario.despensa(semUno, U.parse(ARRANQUE)).every(d => d.total > 0), 'todos los ítems cargados');
+// registrarla antes de la fecha prevista también la carga: manda lo que marqué
+Estado.borrarTodo();
+Generador.limpiarCache();
+const antesDeFecha = U.sumarDias(U.parse(api.FECHAS_ALACENA[0]), -3);
+Estado.marcarAlacena(api.FECHAS_ALACENA[0]);
+ok(Inventario.despensaCargada(antesDeFecha), 'marcada antes de la fecha prevista, igual queda cargada');
+ok(Inventario.despensa(semUno, antesDeFecha).every(d => d.total > 0), 'y con todo el stock');
+// los ítems de una sola vez desaparecen de la lista siguiente
+Estado.marcarUnaVez(['a_sal', 'a_aceto']);
+ok(Estado.unaVezHecho('a_sal') && Estado.unaVezHecho('a_aceto'), 'quedan marcados como comprados una vez');
+Estado.reponerUnaVez('a_sal');
+ok(!Estado.unaVezHecho('a_sal'), 'y vuelven a la lista si los marco como agotados');
 Estado.borrarTodo();
 Generador.limpiarCache();
 

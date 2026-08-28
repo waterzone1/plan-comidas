@@ -194,14 +194,20 @@ const Inventario = (() => {
   /* Despensa: se sigue por ciclo de alacena (cada 3 semanas). */
   function cicloAlacena(ahora) {
     ahora = ahora || new Date();
-    const pasadas = FECHAS_ALACENA.filter(f => U.parse(f) <= U.medianoche(ahora));
-    return pasadas.length ? pasadas[pasadas.length - 1] : FECHAS_ALACENA[0];
+    // manda lo que se registró, no lo que estaba planeado: si marqué la
+    // compra, la despensa está llena aunque la fecha prevista sea posterior
+    const hechas = Estado.get().alacena.slice().sort();
+    const yaFue = hechas.filter(f => U.parse(f) <= U.medianoche(ahora));
+    if (yaFue.length) return yaFue[yaFue.length - 1];
+    if (hechas.length) return hechas[0];
+    const previstas = FECHAS_ALACENA.filter(f => U.parse(f) <= U.medianoche(ahora));
+    return previstas.length ? previstas[previstas.length - 1] : FECHAS_ALACENA[0];
   }
 
   /* Antes de la primera compra de alacena registrada la despensa está vacía:
      la app arranca sin nada cargado. */
-  function despensaCargada(ahora) {
-    return FECHAS_ALACENA.some(f => Estado.alacenaHecha(f) && U.parse(f) <= U.medianoche(ahora || new Date()));
+  function despensaCargada() {
+    return Estado.get().alacena.length > 0;
   }
 
   function despensa(inicio, ahora) {
