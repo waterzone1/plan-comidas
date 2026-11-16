@@ -2,52 +2,62 @@
 <html lang="es-AR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>Plan</title>
-<meta name="theme-color" content="#0b0d10">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Qué como</title>
+<meta name="description" content="Para decidir qué comer ahora.">
+<meta name="theme-color" content="#0e1014">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Plan">
+<meta name="apple-mobile-web-app-title" content="Qué como">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="iconos/icono-180.png">
 <link rel="icon" href="iconos/icono-192.png">
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="juego/juego.css">
 </head>
 <body>
 
 <header class="cab">
   <div class="cab-in">
-    <p class="kicker" id="cab-fecha"></p>
-    <h1 id="cab-titulo">Hoy</h1>
+    <button class="atras" id="atras" aria-label="Volver" hidden>‹</button>
+    <h1 id="titulo">Qué como</h1>
+    <div class="modo" id="modo" role="group" aria-label="Objetivo">
+      <button data-modo="bajar">Bajar</button>
+      <button data-modo="mantener">Mantener</button>
+      <button data-modo="subir">Subir</button>
+    </div>
   </div>
 </header>
 
 <main id="vista" class="vista"></main>
 
-<nav class="tabs" id="tabs">
-  <button class="tab activo" data-tab="hoy"><span class="ic">◐</span>Hoy</button>
-  <button class="tab" data-tab="proximos"><span class="ic">☰</span>Próximos</button>
-  <button class="tab" data-tab="inventario"><span class="ic">▣</span>Inventario</button>
-  <button class="tab" data-tab="compras"><span class="ic">✚</span>Compras</button>
+<nav class="tabs" id="tabs" aria-label="Secciones">
+  <a class="tab" data-tab="inicio" href="#/"><span class="ic">🏠</span>Inicio</a>
+  <a class="tab" data-tab="explorar" href="#/explorar"><span class="ic">📚</span>Explorar</a>
+  <a class="tab" data-tab="compras" href="#/compras"><span class="ic">🛒</span>Compras</a>
+  <a class="tab" data-tab="permitidos" href="#/permitidos"><span class="ic">🍕</span>Permitidos</a>
+  <a class="tab" data-tab="ajustes" href="#/ajustes"><span class="ic">⚙️</span>Ajustes</a>
 </nav>
 
 <div class="hoja oculta" id="hoja">
-  <div class="hoja-fondo" data-cerrar="1"></div>
-  <div class="hoja-panel" id="hoja-panel"></div>
+  <div class="hoja-fondo" data-a="cerrar-hoja"></div>
+  <div class="hoja-panel" id="hoja-panel" role="dialog" aria-modal="true"></div>
 </div>
 
-<div class="aviso oculto" id="aviso"></div>
+<div class="aviso oculto" id="aviso" role="status"></div>
+<div id="juego" class="juego oculto"></div>
+<input type="file" id="in-foto" accept="image/*" capture="environment" hidden>
 
+<script src="datos/ingredientes.js"></script>
 <script src="datos/catalogo.js"></script>
-<script src="datos/porciones.js"></script>
-<script src="datos/ritmo.js"></script>
-<script src="datos/compras.js"></script>
-<script src="js/util.js"></script>
+<script src="datos/permitidos.js"></script>
+<script src="js/nucleo.js"></script>
+<script src="js/ilustraciones.js"></script>
 <script src="js/estado.js"></script>
-<script src="js/generador.js"></script>
-<script src="js/inventario.js"></script>
-<script src="js/ui.js"></script>
+<script src="juego/datos.js"></script>
+<script src="juego/motor.js"></script>
+<script src="juego/ui.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

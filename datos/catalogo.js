@@ -1,114 +1,431 @@
 /* ---------------------------------------------------------------
-   CATÁLOGO — platos, guarniciones y vida útil de las verduras.
-   Este archivo está pensado para editarse a mano. No tiene lógica.
+   CATÁLOGO — platos base. Editable a mano. No tiene lógica.
+
+   Cada plato base se combina con un carbohidrato, hasta tres verduras
+   y una salsa. El primero de cada lista es el que la app sugiere.
+
+   n:      nombre. {C} = el carbohidrato encabeza o va adentro del nombre;
+           {S} = dónde entra la salsa (si no está, va al final)
+   g:      grupo de proteína          e: estilo
+   ing:    proteína que se ajusta en gramos (si no es la del grupo)
+   fijos:  ingredientes fijos, "id:gramos"
+   c:      carbohidratos compatibles  cn: 0 = el nombre ya nombra el carbo
+   v:      verduras compatibles       vd: las que van por defecto
+   vf:     verduras fijas (el nombre ya las nombra)
+   s:      salsas compatibles         sn: 0 = el nombre ya nombra la salsa
+   min:    minutos del plato sin contar el carbohidrato
+   eq:     equipo del plato           rec: recipientes (1 = uno solo)
+   vaj:    vajilla 'poca' | 'media'
+   tags:   antojos                    via: sirve para vianda
+   sd:     se hace sin descongelar    frio: no hay que cocinar
+   top:    entra en "Los de siempre"  il: ilustración
+   ac:     factor de aceite (1 normal, 0.5 poco, 0 nada)
+   vg:     factor de verdura (1 normal)
+   v1:     id del plato en la app vieja, cuando viene de ahí
    --------------------------------------------------------------- */
 
-/* Bases posibles: arroz, fideos, ñoquis, polenta, cebada, papa, puré, legumbres
-   Tags de plato:   urgencia | olla | vianda | desde-congelado | alacena
-   menciona:        verduras que el nombre del plato ya nombra
-                    (para no repetirlas en la guarnición)
-   salsa:           si el plato lleva ~100 g de salsa                        */
+const PROTEINAS = [
+  { id: 'pollo',     n: 'Pollo',        ing: 'pollo',     color: '#E3A23A', ic: '🍗' },
+  { id: 'carne',     n: 'Carne',        ing: 'carne',     color: '#C2533F', ic: '🥩' },
+  { id: 'picada',    n: 'Carne picada', ing: 'picada',    color: '#B36A43', ic: '🍔' },
+  { id: 'cerdo',     n: 'Cerdo',        ing: 'cerdo',     color: '#D98A9A', ic: '🐖' },
+  { id: 'merluza',   n: 'Merluza',      ing: 'merluza',   color: '#5FA8C9', ic: '🐟' },
+  { id: 'trucha',    n: 'Trucha',       ing: 'trucha',    color: '#E58A6B', ic: '🎣' },
+  { id: 'camarones', n: 'Camarones',    ing: 'camarones', color: '#EE7F7A', ic: '🦐', sd: 1 },
+  { id: 'huevo',     n: 'Huevo',        ing: 'huevo',     color: '#E8C547', ic: '🥚', sd: 1 },
+  { id: 'atun',      n: 'Atún',         ing: 'atun',      color: '#5B7FBF', ic: '🥫', sd: 1 },
+  { id: 'legumbres', n: 'Legumbres',    ing: null,        color: '#8FAE5B', ic: '🌰' }
+];
+
+const ESTILOS = [
+  { id: 'plancha', n: 'Plancha',            ic: '🔥' },
+  { id: 'wok',     n: 'Salteado / wok',     ic: '🥢' },
+  { id: 'salsa',   n: 'En salsa / cacerola', ic: '🥘' },
+  { id: 'horno',   n: 'Horno / air fryer',  ic: '♨️' },
+  { id: 'pasta',   n: 'Pasta',              ic: '🍝' },
+  { id: 'guiso',   n: 'Olla / guiso',       ic: '🍲' },
+  { id: 'tarta',   n: 'Tarta / tortilla',   ic: '🥧' },
+  { id: 'wrap',    n: 'Sándwich / wrap',    ic: '🌯' },
+  { id: 'bowl',    n: 'Bowl / frío',        ic: '🥗' }
+];
+
+const ANTOJOS = [
+  { id: 'salsa',        n: 'Con salsa',              ic: '🥫' },
+  { id: 'crocante',     n: 'Crocante',               ic: '🥨' },
+  { id: 'gratinado',    n: 'Gratinado',              ic: '🧀' },
+  { id: 'liviano',      n: 'Liviano / fresco',       ic: '🥗' },
+  { id: 'rapida',       n: 'Comida rápida casera',   ic: '🍔' },
+  { id: 'pasta',        n: 'Pasta reconfortante',    ic: '🍝' },
+  { id: 'condimentado', n: 'Bien condimentado',      ic: '🧄', nota: 'sin picante' },
+  { id: 'desayuno',     n: 'Tipo desayuno',          ic: '🍳' }
+];
+
+const EQUIPOS = {
+  hornalla:   { n: 'Hornalla',   ic: '🔥' },
+  horno:      { n: 'Horno',      ic: '♨️' },
+  airfryer:   { n: 'Air fryer',  ic: '🌀' },
+  microondas: { n: 'Microondas', ic: '📡' }
+};
+
+/* Combinaciones de verdura que ya funcionaban en la app vieja (sus
+   guarniciones). La app las usa para variar las sugerencias. */
+const TRIOS = [
+  'morron cebolla brocoli', 'champinon portobello espinaca', 'morron cebolla champinon',
+  'brocoli morron champinon', 'repollitos cebolla morron', 'repollitos cebolla tomate',
+  'champinon portobello morron', 'brocoli repollitos cebolla', 'tomate cebolla morron',
+  'brocoli repollitos cherry', 'acelga espinaca cebolla', 'rucula cherry champinon',
+  'lechuga tomate cebolla', 'espinaca cherry champinon', 'repollitos rucula cherry',
+  'lechuga rucula tomate', 'rucula cherry', 'espinaca champinon tomate',
+  'zapallito cebolla morron', 'chaucha cebolla tomate', 'coliflor brocoli', 'palta tomate lechuga',
+  'repollo verdeo morron', 'calabaza cebolla espinaca', 'berenjena morron cebolla', 'esparrago cherry'
+];
+
+const V_WOK = 'morron cebolla brocoli champinon zapallito verdeo repollo chaucha espinaca';
+const V_HORNO = 'morron cebolla zapallito berenjena calabaza brocoli repollitos coliflor cherry champinon portobello';
+const V_FRESCA = 'lechuga tomate rucula cherry pepino palta cebolla espinaca repollo choclo';
+const V_LADO = 'brocoli chaucha espinaca zapallito coliflor acelga repollitos esparrago tomate lechuga rucula cherry';
+const V_SALSA = 'cebolla morron champinon espinaca zapallito tomate arveja puerro verdeo';
 
 const PLATOS = [
-  /* ---------- pollo (10) ---------- */
-  { id: 1,  nombre: 'Pollo al wok con soja y sésamo',        grupo: 'pollo',     bases: ['arroz','fideos','cebada'],                                  tags: [],                     menciona: [],              salsa: false },
-  { id: 2,  nombre: 'Pollo al ajillo con vino blanco',       grupo: 'pollo',     bases: ['arroz','fideos','cebada','papa','polenta','puré','ñoquis'], tags: [],                     menciona: [],              salsa: false },
-  { id: 3,  nombre: 'Pollo a la portuguesa',                 grupo: 'pollo',     bases: ['arroz','fideos','cebada','papa','polenta','puré','ñoquis'], tags: [],                     menciona: [],              salsa: true  },
-  { id: 4,  nombre: 'Pollo con salsa blanca y champiñones',  grupo: 'pollo',     bases: ['arroz','fideos','cebada','papa','polenta','puré','ñoquis'], tags: [],                     menciona: ['champiñones'], salsa: true  },
-  { id: 5,  nombre: 'Pollo a la plancha con huevo',          grupo: 'pollo',     bases: ['arroz','papa','polenta','puré'],                            tags: ['urgencia'],           menciona: [],              salsa: false },
-  { id: 6,  nombre: 'Arroz con pollo',                       grupo: 'pollo',     bases: ['arroz'],                                                    tags: ['olla'],               menciona: [],              salsa: false },
-  { id: 7,  nombre: 'Pollo al horno',                        grupo: 'pollo',     bases: ['cebada','papa','polenta','puré'],                           tags: [],                     menciona: [],              salsa: false },
-  { id: 8,  nombre: 'Milanesa de pollo a la air fryer',      grupo: 'pollo',     bases: ['arroz','cebada','papa','polenta','puré'],                   tags: ['desde-congelado'],    menciona: [],              salsa: false },
-  { id: 9,  nombre: 'Milanesa napolitana',                   grupo: 'pollo',     bases: ['arroz','fideos','papa','polenta','puré'],                   tags: ['desde-congelado'],    menciona: [],              salsa: true  },
-  { id: 10, nombre: 'Guiso de lentejas con pollo',           grupo: 'pollo',     bases: ['arroz','legumbres'],                                        tags: ['olla','vianda'],      menciona: [],              salsa: false },
 
-  /* ---------- carne vacuna (6) ---------- */
-  { id: 11, nombre: 'Salteado de carne con soja',            grupo: 'carne',     bases: ['arroz','fideos','cebada'],                                  tags: [],                     menciona: [],              salsa: false },
-  { id: 12, nombre: 'Carne a la cacerola',                   grupo: 'carne',     bases: ['arroz','cebada','papa','polenta','puré'],                   tags: ['olla','vianda'],      menciona: [],              salsa: true  },
-  { id: 13, nombre: 'Carne al horno con cebolla',            grupo: 'carne',     bases: ['cebada','papa','polenta'],                                  tags: [],                     menciona: ['cebolla'],     salsa: false },
-  { id: 14, nombre: 'Bola de lomo a la plancha',             grupo: 'carne',     bases: ['arroz','papa','polenta','puré'],                            tags: ['urgencia'],           menciona: [],              salsa: false },
-  { id: 15, nombre: 'Carne con champiñones al vino',         grupo: 'carne',     bases: ['arroz','fideos','cebada','papa','polenta','puré','ñoquis'], tags: [],                     menciona: ['champiñones'], salsa: true  },
-  { id: 16, nombre: 'Carne en salsa de tomate',              grupo: 'carne',     bases: ['arroz','fideos','cebada','papa','polenta','puré','ñoquis'], tags: [],                     menciona: ['tomate','tomate perita'], salsa: true },
+  /* ================= POLLO ================= */
+  { id: 'pollo-plancha', n: 'Pollo a la plancha', g: 'pollo', e: 'plancha', v1: 5,
+    c: 'pure arroz papa_micro papa_hervida polenta cebada batata', v: V_LADO, vd: 'brocoli',
+    s: 'limon criolla crema yogur', min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano', via: 1, top: 1, il: 'plancha' },
+  { id: 'pollo-caballo', n: 'Pollo a la plancha con huevo', g: 'pollo', e: 'plancha', v1: 5, fijos: 'huevo:50',
+    c: 'pure arroz papa_micro polenta papa_hervida', v: V_LADO, vd: 'tomate lechuga',
+    s: 'criolla limon', min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'rapida desayuno', il: 'huevo' },
+  { id: 'pollo-wok', n: 'Salteado de pollo', g: 'pollo', e: 'wok', v1: 1, fijos: 'sesamo:5',
+    c: 'arroz fideos cebada', v: V_WOK, vd: 'morron cebolla brocoli',
+    s: 'soja teriyaki agridulce mani', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa condimentado', via: 1, top: 1, il: 'wok' },
+  { id: 'pollo-champi', n: 'Pollo con champiñones{S}', g: 'pollo', e: 'salsa', v1: 4, vf: 'champinon',
+    c: 'fideos arroz noquis pure polenta cebada papa_hervida', v: 'espinaca cebolla verdeo puerro arveja', vd: 'espinaca',
+    s: 'crema blanca vino queso_crema', min: 20, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa', via: 1, top: 1, il: 'cacerola' },
+  { id: 'pollo-portuguesa', n: 'Pollo a la portuguesa', g: 'pollo', e: 'salsa', v1: 3, vf: 'morron cebolla',
+    c: 'arroz pure papa_hervida polenta fideos cebada noquis', v: 'tomate arveja zapallito', vd: '',
+    s: 'portuguesa', sn: 0, min: 25, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa condimentado', via: 1, il: 'cacerola' },
+  { id: 'pollo-salsa', n: 'Pollo{S}', g: 'pollo', e: 'salsa',
+    c: 'arroz pure fideos polenta noquis papa_hervida cebada', v: V_SALSA, vd: 'cebolla zapallito',
+    s: 'tomate rosa verdeo', min: 20, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa', via: 1, il: 'cacerola' },
+  { id: 'pollo-ajillo', n: 'Pollo{S}', g: 'pollo', e: 'plancha', v1: 2,
+    c: 'arroz pure papa_hervida fideos cebada polenta noquis papa_micro', v: V_LADO, vd: 'brocoli',
+    s: 'ajillo vino limon', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'condimentado', il: 'plancha' },
+  { id: 'pollo-horno', n: 'Pollo al horno', g: 'pollo', e: 'horno', v1: 7,
+    c: 'papa_horno batata pure cebada polenta', v: V_HORNO, vd: 'morron cebolla zapallito',
+    s: 'limon barbacoa criolla', min: 30, eq: 'horno', rec: 1, vaj: 'poca', tags: 'condimentado', via: 1, il: 'fuente' },
+  { id: 'pollo-crocante', n: 'Pollo crocante a la air fryer', g: 'pollo', e: 'horno', fijos: 'pan_rallado:20',
+    c: 'papa_airfryer pure batata arroz', v: V_FRESCA, vd: 'lechuga tomate',
+    s: 'mayo barbacoa yogur limon', min: 18, eq: 'airfryer', rec: 1, vaj: 'poca', tags: 'crocante rapida', ac: 0.5, il: 'crocante' },
+  { id: 'mila-pollo', n: 'Milanesa de pollo a la air fryer', g: 'pollo', e: 'horno', ing: 'mila_pollo', v1: 8, sd: 1,
+    c: 'pure papa_airfryer arroz papa_hervida polenta cebada', v: 'lechuga tomate rucula cherry pepino cebolla espinaca repollo', vd: 'lechuga tomate',
+    s: 'limon mayo criolla', min: 15, eq: 'airfryer', rec: 1, vaj: 'poca', tags: 'crocante rapida', top: 1, ac: 0, vg: 0.8, il: 'milanesa' },
+  { id: 'mila-napo', n: 'Milanesa de pollo a la napolitana', g: 'pollo', e: 'horno', ing: 'mila_pollo', v1: 9, sd: 1, fijos: 'mozzarella:30 jamon:20',
+    c: 'pure papa_airfryer fideos arroz polenta', v: 'lechuga tomate rucula cherry pepino cebolla espinaca repollo', vd: 'rucula cherry',
+    s: 'tomate', sn: 0, min: 20, eq: 'airfryer', rec: 1, vaj: 'poca', tags: 'gratinado rapida salsa crocante', top: 1, ac: 0, vg: 0.8, il: 'napolitana' },
+  { id: 'arroz-pollo', n: 'Arroz con pollo', g: 'pollo', e: 'guiso', v1: 6,
+    c: 'arroz', cn: 0, v: 'morron cebolla arveja tomate choclo zapallito', vd: 'morron cebolla arveja',
+    s: 'tomate caldo', sn: 0, min: 30, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'condimentado', via: 1, il: 'arroz', todoEnUno: 1 },
+  { id: 'pollo-wrap', n: 'Wrap de pollo', g: 'pollo', e: 'wrap',
+    c: 'tortillas pan_arabe', cn: 0, v: V_FRESCA, vd: 'lechuga tomate palta',
+    s: 'yogur mayo barbacoa criolla', min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'rapida liviano', via: 1, top: 1, vg: 0.6, il: 'wrap' },
+  { id: 'pollo-fajitas', n: 'Fajitas de pollo', g: 'pollo', e: 'wrap',
+    c: 'tortillas', cn: 0, v: 'morron cebolla champinon zapallito palta', vd: 'morron cebolla',
+    s: 'yogur barbacoa queso_crema', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'condimentado rapida', vg: 0.8, il: 'taco' },
+  { id: 'pollo-quesadilla', n: 'Quesadillas de pollo', g: 'pollo', e: 'wrap', fijos: 'mozzarella:40',
+    c: 'tortillas', cn: 0, v: 'morron cebolla choclo espinaca champinon tomate', vd: 'morron cebolla',
+    s: 'yogur criolla queso_crema', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'gratinado rapida crocante', vg: 0.6, ac: 0.5, il: 'quesadilla' },
+  { id: 'pollo-sandwich', n: 'Sándwich de pollo', g: 'pollo', e: 'wrap',
+    c: 'pan pan_lactal pan_arabe', cn: 0, v: 'lechuga tomate rucula palta cebolla pepino', vd: 'lechuga tomate',
+    s: 'mayo yogur barbacoa', min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'rapida', via: 1, vg: 0.6, il: 'sandwich' },
+  { id: 'pollo-bowl', n: 'Bowl de pollo', g: 'pollo', e: 'bowl',
+    c: 'arroz garbanzos cebada porotos', v: V_FRESCA, vd: 'palta tomate choclo',
+    s: 'yogur soja limon teriyaki', min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano', via: 1, il: 'bowl' },
+  { id: 'pollo-ensalada', n: 'Ensalada tibia de pollo', g: 'pollo', e: 'bowl', fijos: 'queso_rallado:15',
+    c: 'pan_lactal garbanzos papa_micro papa_hervida', v: 'lechuga rucula tomate cherry palta pepino espinaca', vd: 'lechuga cherry palta',
+    s: 'yogur limon mayo', min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano', il: 'ensalada' },
+  { id: 'pollo-pasta', n: '{C} con pollo{S}', g: 'pollo', e: 'pasta',
+    c: 'fideos noquis', v: 'brocoli espinaca champinon zapallito cherry arveja', vd: 'brocoli',
+    s: 'crema rosa pesto queso_crema tomate', min: 15, eq: 'hornalla', rec: 1, vaj: 'media', tags: 'pasta salsa', via: 1, top: 1, il: 'pasta' },
+  { id: 'pollo-tarta', n: 'Tarta de pollo', g: 'pollo', e: 'tarta', fijos: 'huevo:50 mozzarella:20',
+    c: 'tapa_tarta', cn: 0, v: 'puerro cebolla morron espinaca champinon', vd: 'puerro cebolla',
+    s: 'blanca queso_crema', sn: 0, min: 40, eq: 'horno hornalla', rec: 2, vaj: 'media', tags: 'gratinado', via: 1, ac: 0.5, vg: 0.7, il: 'tarta' },
+  { id: 'pollo-gratinado', n: 'Pollo gratinado{S}', g: 'pollo', e: 'horno', fijos: 'mozzarella:40',
+    c: 'pure arroz papa_hervida fideos papa_horno', v: 'brocoli espinaca coliflor zapallito champinon', vd: 'brocoli',
+    s: 'blanca tomate crema', min: 25, eq: 'horno', rec: 1, vaj: 'poca', tags: 'gratinado salsa', ac: 0.5, il: 'gratinado' },
+  { id: 'pollo-sopa', n: 'Sopa de pollo', g: 'pollo', e: 'guiso',
+    c: 'fideos arroz', v: 'puerro cebolla zapallito espinaca choclo calabaza acelga', vd: 'puerro zapallito choclo',
+    s: 'caldo', min: 25, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano', ac: 0.5, il: 'sopa', todoEnUno: 1 },
 
-  /* ---------- carne picada (3) ---------- */
-  { id: 17, nombre: 'Bolognesa',                             grupo: 'picada',    bases: ['arroz','fideos','polenta','ñoquis'],                        tags: ['vianda'],             menciona: [],              salsa: true  },
-  { id: 18, nombre: 'Pastel de papa',                        grupo: 'picada',    bases: ['puré'],                                                     tags: ['vianda'],             menciona: [],              salsa: false },
-  { id: 19, nombre: 'Picada con bechamel',                   grupo: 'picada',    bases: ['arroz','fideos','polenta','ñoquis'],                        tags: [],                     menciona: [],              salsa: true  },
+  /* ================= CARNE ================= */
+  { id: 'carne-plancha', n: 'Bife a la plancha', g: 'carne', e: 'plancha', v1: 14,
+    c: 'pure papa_hervida arroz papa_micro batata polenta', v: V_LADO, vd: 'tomate lechuga',
+    s: 'criolla ajillo crema', min: 10, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano', top: 1, il: 'bife' },
+  { id: 'carne-wok', n: 'Salteado de carne', g: 'carne', e: 'wok', v1: 11,
+    c: 'arroz fideos cebada', v: V_WOK, vd: 'morron cebolla brocoli',
+    s: 'soja teriyaki agridulce mani', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa condimentado', via: 1, top: 1, il: 'wok' },
+  { id: 'carne-cacerola', n: 'Carne a la cacerola', g: 'carne', e: 'salsa', v1: 12,
+    c: 'pure arroz polenta papa_hervida cebada fideos', v: 'cebolla morron tomate champinon arveja puerro', vd: 'cebolla morron',
+    s: 'tomate vino', min: 30, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa', via: 1, il: 'cacerola' },
+  { id: 'carne-champi', n: 'Carne con champiñones{S}', g: 'carne', e: 'salsa', v1: 15, vf: 'champinon',
+    c: 'pure arroz fideos noquis polenta cebada papa_hervida', v: 'cebolla verdeo espinaca puerro', vd: 'cebolla',
+    s: 'vino crema', min: 20, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa', il: 'cacerola' },
+  { id: 'bifecitos', n: 'Bifecitos{S}', g: 'carne', e: 'salsa', v1: 16,
+    c: 'arroz pure fideos polenta noquis cebada papa_hervida', v: V_SALSA, vd: 'cebolla morron',
+    s: 'tomate portuguesa verdeo rosa', min: 20, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa', via: 1, top: 1, il: 'cacerola' },
+  { id: 'carne-horno', n: 'Carne al horno con cebolla', g: 'carne', e: 'horno', v1: 13, vf: 'cebolla',
+    c: 'papa_horno batata pure polenta cebada', v: 'morron zapallito berenjena calabaza repollitos cherry champinon', vd: 'morron',
+    s: 'vino barbacoa criolla', min: 35, eq: 'horno', rec: 1, vaj: 'poca', tags: 'condimentado', via: 1, il: 'fuente' },
+  { id: 'strogonoff', n: 'Strogonoff de carne', g: 'carne', e: 'salsa', vf: 'champinon cebolla',
+    c: 'arroz fideos pure', v: 'morron espinaca verdeo', vd: '',
+    s: 'crema queso_crema', sn: 0, min: 20, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa condimentado', via: 1, top: 1, il: 'cacerola' },
+  { id: 'mila-carne', n: 'Milanesa de carne a la air fryer', g: 'carne', e: 'horno', ing: 'mila_carne', sd: 1,
+    c: 'pure papa_airfryer arroz papa_hervida', v: 'lechuga tomate rucula cherry pepino cebolla repollo', vd: 'tomate lechuga',
+    s: 'limon criolla', min: 15, eq: 'airfryer', rec: 1, vaj: 'poca', tags: 'crocante rapida', top: 1, ac: 0, vg: 0.7, il: 'milanesa' },
+  { id: 'bifes-pizza', n: 'Bifes a la pizza', g: 'carne', e: 'salsa', fijos: 'mozzarella:40',
+    c: 'pure arroz fideos papa_hervida polenta', v: 'cebolla morron rucula cherry brocoli espinaca', vd: 'cebolla',
+    s: 'tomate', sn: 0, min: 20, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'gratinado salsa rapida', ac: 0.5, il: 'napolitana' },
+  { id: 'carne-wrap', n: 'Wrap de carne', g: 'carne', e: 'wrap',
+    c: 'tortillas pan_arabe', cn: 0, v: 'morron cebolla lechuga tomate palta champinon', vd: 'morron cebolla',
+    s: 'yogur barbacoa criolla queso_crema', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'rapida condimentado', vg: 0.7, il: 'wrap' },
+  { id: 'lomito', n: 'Sándwich de lomito', g: 'carne', e: 'wrap',
+    c: 'pan pan_arabe pan_lactal', cn: 0, v: 'lechuga tomate cebolla rucula', vd: 'lechuga tomate',
+    s: 'mayo criolla barbacoa', min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'rapida', vg: 0.6, il: 'sandwich' },
+  { id: 'carne-bowl', n: 'Bowl de carne', g: 'carne', e: 'bowl',
+    c: 'arroz cebada porotos', v: 'palta choclo tomate pepino repollo verdeo rucula', vd: 'palta choclo tomate',
+    s: 'teriyaki soja yogur', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano condimentado', via: 1, il: 'bowl' },
+  { id: 'carne-guiso', n: 'Guiso de carne', g: 'carne', e: 'guiso',
+    c: 'fideos arroz papa_hervida', v: 'cebolla morron tomate calabaza arveja choclo puerro', vd: 'cebolla morron calabaza',
+    s: 'tomate caldo', sn: 0, min: 30, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa condimentado', via: 1, il: 'guiso', todoEnUno: 1 },
+  { id: 'carne-ensalada', n: 'Ensalada tibia de carne', g: 'carne', e: 'bowl',
+    c: 'papa_micro papa_hervida garbanzos pan_lactal', v: 'rucula cherry tomate lechuga palta cebolla pepino', vd: 'rucula cherry',
+    s: 'criolla yogur limon', min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano', il: 'ensalada' },
 
-  /* ---------- pescado (3) ---------- */
-  { id: 20, nombre: 'Merluza a la plancha',                  grupo: 'pescado',   bases: ['arroz','papa','polenta','puré'],                            tags: ['urgencia'],           menciona: [],              salsa: false },
-  { id: 21, nombre: 'Merluza al ajillo',                     grupo: 'pescado',   bases: ['arroz','fideos','cebada','papa','polenta','puré'],          tags: [],                     menciona: [],              salsa: false },
-  { id: 22, nombre: 'Trucha a la plancha',                   grupo: 'pescado',   bases: ['arroz','cebada','papa','puré'],                             tags: [],                     menciona: [],              salsa: false },
+  /* ================= CARNE PICADA ================= */
+  { id: 'bolognesa', n: '{C} a la bolognesa', g: 'picada', e: 'pasta', v1: 17, fijos: 'queso_rallado:10',
+    c: 'fideos noquis polenta arroz', v: 'cebolla morron champinon espinaca zapallito', vd: 'cebolla',
+    s: 'tomate', sn: 0, min: 25, eq: 'hornalla', rec: 1, vaj: 'media', tags: 'pasta salsa', via: 1, top: 1, ac: 0.5, il: 'pasta' },
+  { id: 'picada-blanca', n: '{C} con carne{S}', g: 'picada', e: 'pasta', v1: 19,
+    c: 'fideos noquis arroz polenta', v: 'espinaca champinon cebolla brocoli', vd: 'espinaca',
+    s: 'blanca crema queso_crema', min: 20, eq: 'hornalla', rec: 1, vaj: 'media', tags: 'pasta salsa', via: 1, ac: 0.5, il: 'pasta' },
+  { id: 'pastel-papa', n: 'Pastel de papa', g: 'picada', e: 'horno', v1: 18, fijos: 'huevo:50 queso_rallado:15',
+    c: 'pure', cn: 0, v: 'cebolla morron choclo espinaca arveja', vd: 'cebolla morron',
+    s: 'tomate', sn: 0, min: 30, eq: 'horno hornalla', rec: 2, vaj: 'media', tags: 'gratinado', via: 1, top: 1, ac: 0, il: 'gratinado' },
+  { id: 'hamburguesa', n: 'Hamburguesa casera', g: 'picada', e: 'wrap', fijos: 'mozzarella:25',
+    c: 'pan pan_arabe', cn: 0, v: 'lechuga tomate cebolla rucula pepino', vd: 'lechuga tomate cebolla',
+    s: 'mayo barbacoa criolla', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'rapida', top: 1, vg: 0.6, ac: 0, il: 'hamburguesa' },
+  { id: 'hamburguesa-plato', n: 'Hamburguesas al plato', g: 'picada', e: 'plancha',
+    c: 'pure papa_airfryer arroz batata papa_micro', v: V_LADO, vd: 'tomate lechuga',
+    s: 'criolla barbacoa crema', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'rapida', ac: 0, il: 'bife' },
+  { id: 'albondigas', n: 'Albóndigas{S}', g: 'picada', e: 'salsa', fijos: 'pan_rallado:15',
+    c: 'arroz pure fideos polenta', v: 'cebolla morron arveja zapallito espinaca', vd: 'cebolla',
+    s: 'tomate rosa', min: 30, eq: 'hornalla', rec: 1, vaj: 'media', tags: 'salsa', via: 1, ac: 0, il: 'albondigas' },
+  { id: 'zapallitos-rellenos', n: 'Zapallitos rellenos', g: 'picada', e: 'horno', vf: 'zapallito', fijos: 'mozzarella:35',
+    c: 'arroz pure', v: 'cebolla morron tomate', vd: 'cebolla',
+    s: 'blanca tomate', sn: 0, min: 35, eq: 'horno hornalla', rec: 2, vaj: 'media', tags: 'gratinado', via: 1, ac: 0, il: 'gratinado' },
+  { id: 'tacos-picada', n: 'Tacos de carne picada', g: 'picada', e: 'wrap', fijos: 'mozzarella:15',
+    c: 'tortillas', cn: 0, v: 'lechuga tomate cebolla palta morron', vd: 'lechuga tomate',
+    s: 'yogur barbacoa criolla', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'rapida condimentado', vg: 0.6, ac: 0, il: 'taco' },
+  { id: 'picada-porotos', n: 'Guiso rápido de carne picada', g: 'picada', e: 'guiso',
+    c: 'porotos garbanzos arroz', v: 'cebolla morron tomate choclo zapallito', vd: 'cebolla morron',
+    s: 'tomate', sn: 0, min: 20, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa condimentado', via: 1, il: 'guiso' },
+  { id: 'arroz-picada', n: 'Arroz salteado con carne picada', g: 'picada', e: 'wok',
+    c: 'arroz', cn: 0, v: 'verdeo morron arveja cebolla brocoli repollo choclo', vd: 'verdeo morron arveja',
+    s: 'soja teriyaki', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'condimentado', via: 1, ac: 0, il: 'arroz' },
+  { id: 'fideos-picada', n: 'Fideos salteados con carne picada', g: 'picada', e: 'wok',
+    c: 'fideos', cn: 0, v: 'repollo cebolla morron verdeo zapallito brocoli', vd: 'repollo cebolla morron',
+    s: 'soja teriyaki agridulce', min: 15, eq: 'hornalla', rec: 1, vaj: 'media', tags: 'condimentado pasta', via: 1, ac: 0.5, il: 'wok' },
+  { id: 'tarta-carne', n: 'Tarta de carne', g: 'picada', e: 'tarta', fijos: 'huevo:50',
+    c: 'tapa_tarta', cn: 0, v: 'cebolla morron verdeo choclo', vd: 'cebolla morron',
+    s: 'tomate', sn: 0, min: 40, eq: 'horno hornalla', rec: 2, vaj: 'media', tags: 'condimentado', via: 1, ac: 0, vg: 0.7, il: 'tarta' },
 
-  /* ---------- camarones (2) ---------- */
-  { id: 23, nombre: 'Camarones al ajillo',                   grupo: 'camarones', bases: ['arroz','fideos','papa','polenta','puré','ñoquis'],          tags: [],                     menciona: [],              salsa: false },
-  { id: 24, nombre: 'Camarones al wok con soja',             grupo: 'camarones', bases: ['arroz','fideos','cebada'],                                  tags: [],                     menciona: [],              salsa: false },
+  /* ================= CERDO ================= */
+  { id: 'cerdo-plancha', n: 'Bifes de cerdo a la plancha', g: 'cerdo', e: 'plancha',
+    c: 'pure batata arroz papa_hervida papa_micro', v: V_LADO, vd: 'brocoli',
+    s: 'limon criolla barbacoa crema', min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano', il: 'bife' },
+  { id: 'cerdo-wok', n: 'Salteado de cerdo', g: 'cerdo', e: 'wok',
+    c: 'arroz fideos', v: V_WOK, vd: 'morron cebolla repollo',
+    s: 'agridulce soja teriyaki mani', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa condimentado', via: 1, il: 'wok' },
+  { id: 'cerdo-horno', n: 'Cerdo{S}', g: 'cerdo', e: 'horno',
+    c: 'papa_horno batata pure', v: V_HORNO, vd: 'cebolla morron',
+    s: 'barbacoa agridulce vino', min: 30, eq: 'horno', rec: 1, vaj: 'poca', tags: 'condimentado salsa', via: 1, il: 'fuente' },
+  { id: 'solomillo', n: 'Solomillo de cerdo{S}', g: 'cerdo', e: 'salsa',
+    c: 'pure arroz fideos noquis papa_hervida', v: 'champinon cebolla puerro espinaca arveja', vd: 'champinon',
+    s: 'verdeo crema vino', min: 20, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa', il: 'cacerola' },
+  { id: 'bondiola', n: 'Sándwich de bondiola', g: 'cerdo', e: 'wrap',
+    c: 'pan pan_arabe', cn: 0, v: 'lechuga tomate cebolla repollo rucula', vd: 'cebolla lechuga',
+    s: 'barbacoa criolla mayo', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'rapida condimentado', vg: 0.6, il: 'sandwich' },
+  { id: 'chaufa', n: 'Arroz chaufa de cerdo', g: 'cerdo', e: 'wok', fijos: 'huevo:50',
+    c: 'arroz', cn: 0, v: 'verdeo morron arveja choclo brocoli repollo', vd: 'verdeo morron arveja',
+    s: 'soja teriyaki', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'condimentado', via: 1, il: 'arroz' },
+  { id: 'cerdo-bowl', n: 'Bowl de cerdo', g: 'cerdo', e: 'bowl',
+    c: 'arroz cebada', v: 'repollo pepino palta choclo verdeo tomate', vd: 'repollo pepino palta',
+    s: 'teriyaki agridulce soja', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'condimentado', via: 1, il: 'bowl' },
 
-  /* ---------- alacena (2) ---------- */
-  { id: 25, nombre: 'Garbanzos con atún y huevo',            grupo: 'alacena',   bases: ['arroz','legumbres'],                                        tags: ['urgencia','alacena'], menciona: [],              salsa: false, proteinaTexto: '1 lata de garbanzos + 1 lata de atún + 1 huevo' },
-  { id: 26, nombre: 'Tortilla de papa',                      grupo: 'alacena',   bases: ['papa'],                                                     tags: ['alacena'],            menciona: [],              salsa: false, proteinaTexto: '3 huevos' }
+  /* ================= MERLUZA ================= */
+  { id: 'merluza-plancha', n: 'Merluza a la plancha', g: 'merluza', e: 'plancha', v1: 20,
+    c: 'pure arroz papa_hervida papa_micro polenta', v: V_LADO, vd: 'brocoli',
+    s: 'limon criolla yogur', min: 10, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano', top: 1, il: 'pescado' },
+  { id: 'merluza-ajillo', n: 'Merluza al ajillo', g: 'merluza', e: 'plancha', v1: 21,
+    c: 'arroz pure papa_hervida fideos cebada polenta', v: V_LADO, vd: 'espinaca',
+    s: 'ajillo', sn: 0, min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'condimentado', il: 'pescado' },
+  { id: 'merluza-horno', n: 'Merluza al horno', g: 'merluza', e: 'horno', sd: 1,
+    c: 'papa_horno pure arroz batata', v: 'tomate cebolla morron zapallito cherry', vd: 'tomate cebolla',
+    s: 'limon tomate crema', min: 25, eq: 'horno', rec: 1, vaj: 'poca', tags: 'liviano', il: 'fuente' },
+  { id: 'merluza-salsa', n: 'Merluza{S}', g: 'merluza', e: 'salsa',
+    c: 'arroz pure fideos papa_hervida polenta', v: V_SALSA, vd: 'espinaca',
+    s: 'crema tomate verdeo rosa portuguesa', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa', il: 'cacerola' },
+  { id: 'merluza-crocante', n: 'Merluza crocante a la air fryer', g: 'merluza', e: 'horno', sd: 1, fijos: 'pan_rallado:25',
+    c: 'pure papa_airfryer arroz', v: V_FRESCA, vd: 'lechuga tomate',
+    s: 'limon mayo yogur', min: 15, eq: 'airfryer', rec: 1, vaj: 'poca', tags: 'crocante rapida', ac: 0.5, il: 'crocante' },
+  { id: 'merluza-gratinada', n: 'Merluza gratinada', g: 'merluza', e: 'horno', sd: 1, fijos: 'mozzarella:40',
+    c: 'pure arroz papa_hervida', v: 'espinaca brocoli tomate cebolla acelga', vd: 'espinaca',
+    s: 'blanca tomate crema', sn: 0, min: 25, eq: 'horno', rec: 1, vaj: 'poca', tags: 'gratinado salsa', ac: 0.5, il: 'gratinado' },
+  { id: 'tacos-pescado', n: 'Tacos de pescado', g: 'merluza', e: 'wrap',
+    c: 'tortillas', cn: 0, v: 'repollo palta tomate lechuga cebolla pepino', vd: 'repollo palta',
+    s: 'yogur mayo', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'rapida liviano', vg: 0.6, il: 'taco' },
+  { id: 'merluza-cazuela', n: 'Cazuela de merluza', g: 'merluza', e: 'guiso',
+    c: 'papa_hervida arroz', v: 'cebolla morron tomate arveja puerro', vd: 'cebolla morron arveja',
+    s: 'tomate', sn: 0, min: 25, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa', il: 'guiso', todoEnUno: 1 },
+  { id: 'merluza-micro', n: 'Merluza al vapor en microondas', g: 'merluza', e: 'plancha',
+    c: 'pure papa_micro arroz', v: 'zapallito tomate cebolla espinaca chaucha morron', vd: 'zapallito tomate',
+    s: 'limon soja', min: 8, eq: 'microondas', rec: 1, vaj: 'poca', tags: 'liviano', il: 'pescado' },
+
+  /* ================= TRUCHA ================= */
+  { id: 'trucha-plancha', n: 'Trucha a la plancha', g: 'trucha', e: 'plancha', v1: 22,
+    c: 'pure papa_hervida arroz cebada papa_micro', v: V_LADO, vd: 'brocoli',
+    s: 'limon yogur crema', min: 10, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano', ac: 0.5, il: 'pescado' },
+  { id: 'trucha-horno', n: 'Trucha al horno', g: 'trucha', e: 'horno',
+    c: 'papa_horno batata pure', v: 'zapallito cherry cebolla morron esparrago', vd: 'zapallito cherry',
+    s: 'limon vino crema', min: 20, eq: 'horno', rec: 1, vaj: 'poca', tags: 'liviano', ac: 0.5, il: 'fuente' },
+  { id: 'trucha-crema', n: 'Trucha{S}', g: 'trucha', e: 'salsa',
+    c: 'pure arroz fideos noquis', v: 'espinaca puerro champinon esparrago arveja', vd: 'espinaca',
+    s: 'crema verdeo queso_crema', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa', ac: 0, il: 'cacerola' },
+  { id: 'trucha-glaseada', n: 'Trucha glaseada{S}', g: 'trucha', e: 'plancha',
+    c: 'arroz cebada fideos', v: 'brocoli chaucha verdeo zapallito repollo', vd: 'brocoli',
+    s: 'teriyaki soja agridulce', min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'condimentado salsa', ac: 0.5, il: 'pescado' },
+  { id: 'trucha-airfryer', n: 'Trucha a la air fryer', g: 'trucha', e: 'horno',
+    c: 'papa_airfryer pure batata arroz', v: V_FRESCA, vd: 'rucula cherry',
+    s: 'limon yogur mayo', min: 12, eq: 'airfryer', rec: 1, vaj: 'poca', tags: 'crocante liviano', ac: 0.5, il: 'pescado' },
+  { id: 'trucha-sushi', n: 'Bowl de trucha estilo sushi', g: 'trucha', e: 'bowl', fijos: 'sesamo:5',
+    c: 'arroz', cn: 0, v: 'pepino palta verdeo repollo', vd: 'pepino palta',
+    s: 'soja teriyaki queso_crema', min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano condimentado', ac: 0, il: 'sushi' },
+  { id: 'trucha-pasta', n: '{C} con trucha{S}', g: 'trucha', e: 'pasta',
+    c: 'fideos noquis', v: 'espinaca puerro arveja zapallito cherry', vd: 'espinaca',
+    s: 'crema queso_crema rosa', min: 15, eq: 'hornalla', rec: 1, vaj: 'media', tags: 'pasta salsa', ac: 0, il: 'pasta' },
+
+  /* ================= CAMARONES ================= */
+  { id: 'cam-ajillo', n: 'Camarones al ajillo', g: 'camarones', e: 'plancha', v1: 23,
+    c: 'arroz fideos pure papa_hervida noquis polenta', v: 'espinaca brocoli cherry zapallito esparrago', vd: 'espinaca cherry',
+    s: 'ajillo', sn: 0, min: 10, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'condimentado', il: 'camarones' },
+  { id: 'cam-wok', n: 'Salteado de camarones', g: 'camarones', e: 'wok', v1: 24,
+    c: 'arroz fideos cebada', v: V_WOK, vd: 'morron cebolla zapallito',
+    s: 'soja teriyaki agridulce', min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa condimentado', il: 'wok' },
+  { id: 'cam-pasta', n: '{C} con camarones{S}', g: 'camarones', e: 'pasta',
+    c: 'fideos noquis', v: 'espinaca cherry zapallito puerro arveja champinon', vd: 'espinaca cherry',
+    s: 'crema rosa tomate pesto', min: 15, eq: 'hornalla', rec: 1, vaj: 'media', tags: 'pasta salsa', il: 'pasta' },
+  { id: 'cam-arroz', n: 'Arroz con camarones', g: 'camarones', e: 'guiso',
+    c: 'arroz', cn: 0, v: 'morron cebolla arveja tomate verdeo', vd: 'morron cebolla arveja',
+    s: 'tomate caldo', sn: 0, min: 25, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'condimentado', via: 1, il: 'arroz', todoEnUno: 1 },
+  { id: 'cam-tacos', n: 'Tacos de camarones', g: 'camarones', e: 'wrap',
+    c: 'tortillas', cn: 0, v: 'repollo palta tomate cebolla lechuga', vd: 'repollo palta',
+    s: 'yogur mayo', min: 12, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'rapida liviano', vg: 0.6, il: 'taco' },
+  { id: 'cam-bowl', n: 'Bowl de camarones', g: 'camarones', e: 'bowl',
+    c: 'arroz cebada garbanzos', v: 'palta pepino choclo tomate verdeo rucula', vd: 'palta pepino choclo',
+    s: 'soja yogur teriyaki limon', min: 10, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano', il: 'bowl' },
+  { id: 'cam-ensalada', n: 'Ensalada de camarones', g: 'camarones', e: 'bowl',
+    c: 'papa_micro papa_hervida garbanzos pan_lactal', v: 'lechuga rucula palta tomate cherry pepino', vd: 'lechuga palta cherry',
+    s: 'limon mayo yogur', min: 10, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano', il: 'ensalada' },
+  { id: 'cam-crocante', n: 'Camarones crocantes a la air fryer', g: 'camarones', e: 'horno', fijos: 'pan_rallado:25',
+    c: 'arroz pure papa_airfryer', v: V_FRESCA, vd: 'lechuga tomate',
+    s: 'mayo agridulce limon', min: 12, eq: 'airfryer', rec: 1, vaj: 'poca', tags: 'crocante rapida', ac: 0.5, il: 'crocante' },
+
+  /* ================= HUEVO ================= */
+  { id: 'tortilla-papa', n: 'Tortilla de papa con jamón y queso', g: 'huevo', e: 'tarta', v1: 26, fijos: 'jamon:100 mozzarella:20',
+    c: 'papa_micro papa_hervida', cn: 0, v: 'cebolla morron espinaca verdeo zapallito', vd: 'cebolla',
+    s: 'criolla mayo', min: 20, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'desayuno', via: 1, top: 1, vg: 0.7, ac: 0.5, il: 'tortilla' },
+  { id: 'omelette', n: 'Omelette de jamón y queso', g: 'huevo', e: 'tarta', fijos: 'jamon:80 mozzarella:40',
+    c: 'pan_lactal papa_micro pure', v: 'tomate rucula champinon espinaca cebolla', vd: 'tomate rucula',
+    s: 'criolla queso_crema', min: 8, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'desayuno rapida', top: 1, vg: 0.7, ac: 0.5, il: 'omelette' },
+  { id: 'gramajo', n: 'Revuelto gramajo liviano', g: 'huevo', e: 'tarta', fijos: 'jamon:100',
+    c: 'papa_airfryer papa_micro', cn: 0, v: 'arveja cebolla verdeo morron', vd: 'arveja cebolla',
+    s: 'nada criolla', sn: 0, min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'desayuno rapida', vg: 0.7, ac: 0.5, il: 'huevo' },
+  { id: 'huevos-tomate', n: 'Huevos en salsa de tomate', g: 'huevo', e: 'salsa', fijos: 'jamon:60 mozzarella:30',
+    c: 'garbanzos pan_lactal pan_arabe', v: 'morron cebolla espinaca tomate', vd: 'morron cebolla',
+    s: 'tomate', sn: 0, min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', vg: 0.7, tags: 'salsa desayuno gratinado', ac: 0.5, il: 'huevo' },
+  { id: 'tostadas-huevo', n: 'Tostadas con huevo revuelto y jamón', g: 'huevo', e: 'wrap', fijos: 'jamon:100',
+    c: 'pan_lactal', cn: 0, v: 'palta tomate espinaca champinon rucula', vd: 'tomate palta',
+    s: 'nada criolla', min: 8, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'desayuno rapida', vg: 0.6, ac: 0.5, il: 'tostada' },
+  { id: 'frittata', n: 'Frittata de verduras', g: 'huevo', e: 'tarta', fijos: 'jamon:120 ricota:60 mozzarella:20',
+    c: 'papa_micro pan_lactal pure', v: 'espinaca zapallito cebolla morron champinon brocoli puerro acelga', vd: 'espinaca zapallito cebolla',
+    s: 'nada criolla', min: 25, eq: 'horno', rec: 1, vaj: 'poca', tags: 'gratinado', via: 1, vg: 0.8, il: 'tortilla' },
+  { id: 'wrap-huevo', n: 'Wrap de huevo, jamón y queso', g: 'huevo', e: 'wrap', ing: 'jamon', fijos: 'huevo:100 mozzarella:20',
+    c: 'tortillas', cn: 0, v: 'tomate rucula espinaca lechuga', vd: 'tomate rucula',
+    s: 'queso_crema mayo', min: 8, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'desayuno rapida', via: 1, vg: 0.5, ac: 0, il: 'wrap' },
+  { id: 'pascualina', n: 'Tarta pascualina', g: 'huevo', e: 'tarta', vf: 'espinaca', fijos: 'jamon:80 ricota:80 mozzarella:20',
+    c: 'tapa_tarta', cn: 0, v: 'acelga cebolla', vd: 'cebolla',
+    s: 'nada', sn: 0, vg: 0.7, min: 40, eq: 'horno hornalla', rec: 2, vaj: 'media', tags: 'gratinado', via: 1, ac: 0, il: 'tarta' },
+  { id: 'tostado', n: 'Tostado de jamón, queso y huevo', g: 'huevo', e: 'wrap', fijos: 'jamon:80 mozzarella:40',
+    c: 'pan_lactal', cn: 0, v: 'tomate rucula espinaca', vd: 'tomate',
+    s: 'queso_crema mayo', min: 8, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'desayuno rapida crocante', vg: 0.5, ac: 0, il: 'tostada' },
+  { id: 'omelette-taza', n: 'Omelette de taza al microondas', g: 'huevo', e: 'tarta', fijos: 'jamon:80 mozzarella:40',
+    c: 'pan_lactal', v: 'espinaca tomate champinon cebolla verdeo', vd: 'espinaca tomate',
+    s: 'queso_crema criolla', min: 5, eq: 'microondas', rec: 1, vaj: 'poca', tags: 'desayuno rapida', vg: 0.5, ac: 0, il: 'omelette' },
+
+  /* ================= ATÚN ================= */
+  { id: 'atun-pasta', n: '{C} con atún{S}', g: 'atun', e: 'pasta',
+    c: 'fideos arroz polenta noquis', v: 'cherry cebolla espinaca arveja morron zapallito', vd: 'cebolla cherry',
+    s: 'tomate crema rosa queso_crema', min: 10, eq: 'hornalla', rec: 1, vaj: 'media', tags: 'pasta salsa', via: 1, top: 1, il: 'pasta' },
+  { id: 'atun-wrap', n: 'Wrap de atún', g: 'atun', e: 'wrap', frio: 1,
+    c: 'tortillas pan_arabe', cn: 0, v: 'lechuga tomate cebolla palta choclo pepino', vd: 'lechuga tomate choclo',
+    s: 'mayo yogur queso_crema', min: 5, eq: '', rec: 0, vaj: 'poca', tags: 'rapida liviano', via: 1, vg: 0.6, ac: 0.5, il: 'wrap' },
+  { id: 'atun-sandwich', n: 'Sándwich de atún y huevo', g: 'atun', e: 'wrap', frio: 1, fijos: 'huevo:50',
+    c: 'pan_lactal pan pan_arabe', cn: 0, v: 'lechuga tomate cebolla pepino rucula', vd: 'lechuga tomate',
+    s: 'mayo queso_crema', min: 8, eq: '', rec: 0, vaj: 'poca', tags: 'rapida', via: 1, vg: 0.6, ac: 0.5, il: 'sandwich' },
+  { id: 'atun-arroz', n: 'Ensalada de arroz con atún', g: 'atun', e: 'bowl', fijos: 'huevo:50',
+    c: 'arroz', cn: 0, v: 'tomate choclo arveja morron cebolla palta', vd: 'tomate choclo arveja',
+    s: 'mayo limon', min: 5, eq: '', rec: 0, vaj: 'poca', tags: 'liviano', via: 1, ac: 0.5, il: 'ensalada' },
+  { id: 'atun-tarta', n: 'Tarta de atún', g: 'atun', e: 'tarta', fijos: 'huevo:50 mozzarella:30',
+    c: 'tapa_tarta', cn: 0, v: 'cebolla morron tomate choclo puerro', vd: 'cebolla morron',
+    s: 'blanca queso_crema tomate', sn: 0, min: 35, eq: 'horno hornalla', rec: 2, vaj: 'media', tags: 'gratinado', via: 1, ac: 0, vg: 0.7, il: 'tarta' },
+  { id: 'atun-papa', n: 'Ensalada de papa, huevo y atún', g: 'atun', e: 'bowl', fijos: 'huevo:50',
+    c: 'papa_hervida papa_micro', cn: 0, v: 'arveja chaucha cebolla tomate verdeo', vd: 'arveja chaucha',
+    s: 'mayo yogur limon', min: 5, eq: '', rec: 0, vaj: 'poca', tags: 'liviano', via: 1, ac: 0.5, il: 'ensalada' },
+  { id: 'atun-bowl', n: 'Bowl de atún', g: 'atun', e: 'bowl', frio: 1,
+    c: 'garbanzos porotos arroz cebada', v: 'palta pepino choclo tomate rucula verdeo', vd: 'palta pepino choclo',
+    s: 'soja yogur limon', min: 5, eq: '', rec: 0, vaj: 'poca', tags: 'liviano', via: 1, il: 'bowl' },
+  { id: 'pizzetas', n: 'Pizzetas de tortilla con atún', g: 'atun', e: 'horno', fijos: 'mozzarella:50',
+    c: 'tortillas', cn: 0, v: 'tomate cebolla morron rucula cherry champinon', vd: 'tomate cebolla',
+    s: 'tomate', sn: 0, min: 10, eq: 'airfryer', rec: 1, vaj: 'poca', tags: 'gratinado rapida crocante', vg: 0.6, ac: 0, il: 'pizza' },
+  { id: 'atun-medallones', n: 'Medallones de atún a la air fryer', g: 'atun', e: 'horno', fijos: 'huevo:50 pan_rallado:25',
+    c: 'pure arroz papa_airfryer', v: V_FRESCA, vd: 'lechuga tomate',
+    s: 'limon mayo yogur', min: 15, eq: 'airfryer', rec: 1, vaj: 'media', tags: 'crocante', ac: 0.5, il: 'crocante' },
+  { id: 'papa-rellena', n: 'Papa rellena de atún y queso', g: 'atun', e: 'horno', fijos: 'mozzarella:40',
+    c: 'papa_micro', cn: 0, v: 'choclo verdeo cebolla morron espinaca tomate', vd: 'choclo verdeo',
+    s: 'queso_crema yogur', min: 12, eq: 'microondas', rec: 1, vaj: 'poca', tags: 'gratinado rapida', vg: 0.6, il: 'papa' },
+
+  /* ================= LEGUMBRES ================= */
+  { id: 'legumbres-atun', n: '{C} con atún y huevo', g: 'legumbres', e: 'bowl', ing: 'atun', v1: 25, sd: 1, frio: 1, fijos: 'huevo:50',
+    c: 'garbanzos lentejas porotos', v: 'tomate cebolla morron rucula pepino palta choclo verdeo', vd: 'tomate cebolla',
+    s: 'limon mayo criolla', min: 8, eq: '', rec: 0, vaj: 'poca', tags: 'liviano', via: 1, top: 1, il: 'bowl' },
+  { id: 'lentejas-pollo', n: 'Guiso de lentejas con pollo', g: 'legumbres', e: 'guiso', ing: 'pollo', v1: 10,
+    c: 'lentejas', cn: 0, v: 'cebolla morron tomate puerro calabaza espinaca', vd: 'cebolla morron',
+    s: 'tomate caldo', sn: 0, min: 25, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa condimentado', via: 1, top: 1, il: 'guiso' },
+  { id: 'lentejas-carne', n: 'Guiso de lentejas con carne', g: 'legumbres', e: 'guiso', ing: 'carne',
+    c: 'lentejas', cn: 0, v: 'cebolla morron tomate calabaza puerro espinaca choclo', vd: 'cebolla morron calabaza',
+    s: 'tomate caldo', sn: 0, min: 30, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa condimentado', via: 1, il: 'guiso' },
+  { id: 'garbanzos-pollo', n: 'Garbanzos con pollo{S}', g: 'legumbres', e: 'salsa', ing: 'pollo',
+    c: 'garbanzos', cn: 0, v: 'espinaca cebolla morron tomate zapallito', vd: 'espinaca cebolla',
+    s: 'tomate rosa portuguesa', min: 15, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa', via: 1, il: 'cacerola' },
+  { id: 'porotos-cerdo', n: 'Cazuela de porotos con cerdo', g: 'legumbres', e: 'guiso', ing: 'cerdo',
+    c: 'porotos', cn: 0, v: 'cebolla morron tomate calabaza choclo', vd: 'cebolla morron',
+    s: 'tomate barbacoa', sn: 0, min: 20, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'salsa condimentado', via: 1, il: 'guiso' },
+  { id: 'lentejas-huevo', n: 'Lentejas tibias con huevo y jamón', g: 'legumbres', e: 'bowl', ing: 'huevo', sd: 1, fijos: 'jamon:60',
+    c: 'lentejas', cn: 0, v: 'cebolla tomate rucula espinaca verdeo morron', vd: 'tomate cebolla',
+    s: 'criolla limon', sn: 0, min: 10, eq: 'hornalla', rec: 1, vaj: 'poca', tags: 'liviano desayuno', il: 'bowl' },
+  { id: 'porotos-atun', n: 'Ensalada de porotos, atún y choclo', g: 'legumbres', e: 'bowl', ing: 'atun', sd: 1, frio: 1, vf: 'choclo',
+    c: 'porotos', cn: 0, v: 'tomate cebolla palta morron pepino', vd: 'tomate cebolla',
+    s: 'limon mayo yogur', min: 5, eq: '', rec: 0, vaj: 'poca', tags: 'liviano', via: 1, il: 'ensalada' },
+  { id: 'garbanzos-crocantes', n: 'Bowl de garbanzos crocantes y pollo', g: 'legumbres', e: 'bowl', ing: 'pollo',
+    c: 'garbanzos', cn: 0, v: V_FRESCA, vd: 'rucula tomate pepino',
+    s: 'yogur limon', min: 18, eq: 'airfryer', rec: 1, vaj: 'poca', tags: 'crocante liviano', il: 'bowl' }
 ];
-
-/* Tags de guarnición: rápida | cruda | en-salsa | freezer
-   vida: primer día en que la verdura más perecedera ya no sirve, contado
-         desde el sábado de compra. Sale de VERDURAS (es el mínimo de las
-         que lleva); está acá para poder leerlo de un vistazo.
-   min:  minutos de preparación                                              */
-
-const GUARNICIONES = [
-  { id: 1,  nombre: 'Morrón, cebolla y brócoli',                    verduras: ['morrón','cebolla','brócoli'],           vida: 6,  min: 12, tags: [] },
-  { id: 2,  nombre: 'Champiñones, portobello y espinaca',           verduras: ['champiñones','portobello','espinaca'],  vida: 4,  min: 10, tags: ['rápida'] },
-  { id: 3,  nombre: 'Morrón, cebolla y champiñones',                verduras: ['morrón','cebolla','champiñones'],       vida: 4,  min: 12, tags: [] },
-  { id: 4,  nombre: 'Brócoli, morrón y champiñones al sésamo',      verduras: ['brócoli','morrón','champiñones'],       vida: 4,  min: 14, tags: [] },
-  { id: 5,  nombre: 'Repollitos, cebolla y morrón',                 verduras: ['repollitos','cebolla','morrón'],        vida: 10, min: 15, tags: [] },
-  { id: 6,  nombre: 'Brócoli, morrón y cebolla al horno',           verduras: ['brócoli','morrón','cebolla'],           vida: 6,  min: 20, tags: [] },
-  { id: 7,  nombre: 'Repollitos, cebolla y tomate perita al horno', verduras: ['repollitos','cebolla','tomate perita'], vida: 8,  min: 25, tags: [] },
-  { id: 8,  nombre: 'Champiñones, portobello y morrón al horno',    verduras: ['champiñones','portobello','morrón'],    vida: 4,  min: 20, tags: [] },
-  { id: 9,  nombre: 'Brócoli, repollitos y cebolla dorados',        verduras: ['brócoli','repollitos','cebolla'],       vida: 6,  min: 22, tags: [] },
-  { id: 10, nombre: 'Tomate perita, cebolla y morrón asados',       verduras: ['tomate perita','cebolla','morrón'],     vida: 8,  min: 25, tags: [] },
-  { id: 11, nombre: 'Brócoli y repollitos con cherry crudo',        verduras: ['brócoli','repollitos','cherry'],        vida: 6,  min: 12, tags: [] },
-  { id: 12, nombre: 'Acelga, espinaca y cebolla',                   verduras: ['acelga','espinaca','cebolla'],          vida: 8,  min: 12, tags: [] },
-  { id: 13, nombre: 'Brócoli al vapor',                             verduras: ['brócoli'],                              vida: 6,  min: 8,  tags: ['rápida'] },
-  { id: 14, nombre: 'Rúcula, cherry y champiñones',                 verduras: ['rúcula','cherry','champiñones'],        vida: 4,  min: 5,  tags: ['cruda','rápida'] },
-  { id: 15, nombre: 'Lechuga, tomate y cebolla',                    verduras: ['lechuga','tomate','cebolla'],           vida: 6,  min: 6,  tags: ['cruda','rápida'] },
-  { id: 16, nombre: 'Espinaca, cherry y champiñones',               verduras: ['espinaca','cherry','champiñones'],      vida: 4,  min: 5,  tags: ['cruda','rápida'] },
-  { id: 17, nombre: 'Repollitos fileteados, rúcula y cherry',       verduras: ['repollitos','rúcula','cherry'],         vida: 6,  min: 8,  tags: ['cruda','rápida'] },
-  { id: 18, nombre: 'Lechuga, rúcula, tomate y palta',              verduras: ['lechuga','rúcula','tomate'],            vida: 6,  min: 6,  tags: ['cruda','rápida'] },
-  { id: 19, nombre: 'Rúcula con cherry y aceto',                    verduras: ['rúcula','cherry'],                      vida: 6,  min: 3,  tags: ['cruda','rápida'] },
-  { id: 20, nombre: 'Tomate, cebolla y morrón en la salsa',         verduras: ['tomate','cebolla','morrón'],            vida: 6,  min: 0,  tags: ['en-salsa','rápida'] },
-  { id: 21, nombre: 'Espinaca, champiñones y tomate en la salsa',   verduras: ['espinaca','champiñones','tomate'],      vida: 4,  min: 0,  tags: ['en-salsa','rápida'] },
-  { id: 22, nombre: 'Verdura mixta y espinaca al wok',              verduras: ['congelados'],                           vida: 99, min: 10, tags: ['freezer','rápida'] },
-  { id: 23, nombre: 'Brócoli congelado, morrón y cebolla',          verduras: ['congelados','morrón','cebolla'],        vida: 10, min: 20, tags: ['freezer'] },
-  { id: 24, nombre: 'Verdura mixta al vapor con cherry',            verduras: ['congelados','cherry'],                  vida: 6,  min: 10, tags: ['freezer','rápida'] },
-  { id: 25, nombre: 'Espinaca congelada, champiñones y tomate',     verduras: ['congelados','champiñones','tomate'],     vida: 4,  min: 12, tags: ['freezer'] }
-];
-
-/* Ventana de uso de cada verdura, en días contados desde el sábado de compra
-   (día 0 = sábado).
-
-   desde: primer día en que se puede usar. 0 para todo lo que entra el sábado;
-          4 para la acelga y la lechuga, que vienen solo en la reposición del
-          miércoles y por eso sirven para las ensaladas del final de semana.
-   vida:  primer día en que ya no sirve.
-   compra: gramos que entran con la compra semanal del sábado
-          (0 = no está en esa lista; ver COMPRA_HOJAS).
-
-   Rúcula y espinaca llegan a 8 porque el miércoles se reponen; sin esa compra
-   de mitad de semana durarían 6 y 4. */
-
-const VERDURAS = {
-  'rúcula':        { desde: 0, vida: 8,  compra: 140 },
-  'lechuga':       { desde: 4, vida: 8,  compra: 0   },
-  'espinaca':      { desde: 0, vida: 8,  compra: 230 },
-  'acelga':        { desde: 4, vida: 8,  compra: 0   },
-  'champiñones':   { desde: 0, vida: 4,  compra: 450 },
-  'portobello':    { desde: 0, vida: 4,  compra: 120 },
-  'brócoli':       { desde: 0, vida: 6,  compra: 470 },
-  'cherry':        { desde: 0, vida: 6,  compra: 380 },
-  'tomate':        { desde: 0, vida: 6,  compra: 240 },
-  'tomate perita': { desde: 0, vida: 8,  compra: 130 },
-  'morrón':        { desde: 0, vida: 10, compra: 530 },
-  'repollitos':    { desde: 0, vida: 12, compra: 370 },
-  'cebolla':       { desde: 0, vida: 14, compra: 810 },
-  'congelados':    { desde: 0, vida: 99, compra: 530 }
-};

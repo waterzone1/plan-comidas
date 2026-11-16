@@ -1,187 +1,147 @@
 /* ---------------------------------------------------------------
-   ESTADO — los únicos hechos durables que guarda la app.
-   Todo lo demás (el plan de la semana, el inventario, las listas)
-   se calcula a partir de esto. Si acá no hay nada, la app igual
-   funciona: se asume la compra de siempre y el plan que salga.
+   ESTADO — lo poco que la app recuerda. Nada de esto hay que
+   mantenerlo al día: son gustos (favoritos, votos, veces hecho),
+   la lista de compras en curso y las fotos propias.
+
+   Todo vive en el teléfono: localStorage con prefijo "v2:" (para no
+   chocar con la app vieja) y las fotos en IndexedDB.
    --------------------------------------------------------------- */
 
 const Estado = (() => {
-  const CLAVE = 'plan.comidas.v1';
+  const CLAVE = 'v2:estado';
 
-  /* El inventario es un stock que corre: cada compra aceptada es un evento
-     que suma, y las comidas del plan van restando. La lista de compras
-     muestra la diferencia entre lo que hay y lo que tendría que haber. */
   const vacio = () => ({
-    entradas: [],       // [{ fecha, items: {clave: cantidad} }] compras aceptadas
-    borrador: null,     // lo marcado que todavía no se aceptó
-    compras: {},        // inicioSemana -> { fecha, estado: {id:'no'} } lo que no conseguí
-    hojas: {},          // (formato viejo, se conserva para no perder datos)
-    alacena: {},        // fecha -> compra de alacena aceptada
-    cambios: {},        // inicioSemana -> { 'dia:comida' -> idPlato }
-    fijados: {},        // inicioSemana -> { 'dia:comida' -> {plato, base, guarnicion} }
-    saltados: {},       // inicioSemana -> ['dia:comida']
-    verdura: {},        // inicioSemana -> { 'dia:comida' -> gramos }
-    unaVez: [],         // ids de alacena ya comprados una vez
-    tildes: {}          // idLista -> { idItem: true }
+    version: 2,
+    modo: 'mantener',     // bajar | mantener | subir
+    tema: 'auto',         // auto | claro | oscuro
+    favoritos: {},        // idPlato -> true
+    votos: {},            // idPlato -> 1 | -1
+    hechos: {},           // idPlato -> veces cocinado
+    ultima: {},           // idPlato -> fecha de la última vez
+    combos: {},           // idPlato -> última combinación elegida
+    compra: { titulo: '', filas: [], listos: {} },   // modo compra
+    sonido: true
   });
 
   let s = null;
 
-  /* Los formatos viejos se convierten al leer: hojas era true/false y
-     alacena era una lista de fechas. */
-  function migrar(st) {
-    if (st.hojas === true || Array.isArray(st.hojas)) st.hojas = {};
-    Object.keys(st.hojas || {}).forEach(k => {
-      if (st.hojas[k] === true) st.hojas[k] = { fecha: k, estado: {}, cant: {} };
-    });
-    if (Array.isArray(st.alacena)) st.alacena = {};
-    if (!Array.isArray(st.entradas)) st.entradas = [];
-    // el formato viejo guardaba solo los faltantes: lo demas se daba por comprado
-    Object.keys(st.compras || {}).forEach(k => {
-      const r = st.compras[k];
-      if (r && !r.estado) {
-        r.estado = {};
-        (r.faltantes || []).forEach(id => { r.estado[id] = 'no'; });
-        delete r.faltantes;
-      }
-      if (r && !r.cant) r.cant = {};
-    });
-    return st;
-  }
-
   function cargar() {
     if (s) return s;
-    try {
-      s = migrar(Object.assign(vacio(), JSON.parse(localStorage.getItem(CLAVE) || '{}')));
-    } catch (e) {
-      s = vacio();
-    }
+    try { s = Object.assign(vacio(), JSON.parse(localStorage.getItem(CLAVE) || '{}')); }
+    catch (e) { s = vacio(); }
+    if (!s.compra || !Array.isArray(s.compra.filas)) s.compra = vacio().compra;
     return s;
   }
+
   function guardar() {
     try { localStorage.setItem(CLAVE, JSON.stringify(cargar())); } catch (e) { /* modo privado */ }
   }
 
-  const sub = (mapa, semana, def) => {
-    const st = cargar();
-    if (!st[mapa][semana]) st[mapa][semana] = def;
-    return st[mapa][semana];
-  };
+  function cambiar(fn) { fn(cargar()); guardar(); }
 
+  function exportar() { return JSON.stringify(cargar(), null, 1); }
 
+  function importar(txt) {
+    const o = JSON.parse(txt);
+    if (!o || typeof o !== 'object' || o.version !== 2) throw new Error('No es una copia de esta app');
+    s = Object.assign(vacio(), o);
+    guardar();
+  }
 
-  return {
-    get: cargar,
-    guardar,
+  function borrar() { s = vacio(); guardar(); }
 
-    compra:   (sem) => cargar().compras[sem] || null,
-    /* Lo que marqué explícitamente como "no lo conseguí". Es lo único de la
-       compra que cambia el plan: lo que está sin marcar no lo condiciona. */
-    faltantes: (sem) => {
-      const r = cargar().compras[sem];
-      if (!r || !r.estado) return [];
-      return Object.keys(r.estado).filter(id => r.estado[id] === 'no');
-    },
-    cambios:  (sem) => cargar().cambios[sem] || {},
-    fijados:  (sem) => cargar().fijados[sem] || {},
-    saltados: (sem) => cargar().saltados[sem] || [],
-    verduras: (sem) => cargar().verdura[sem] || {},
-    hayEntradas: () => cargar().entradas.length > 0,
+  return { get: cargar, cambiar, guardar, exportar, importar, borrar };
+})();
 
-    /* --- el borrador: lo que voy marcando mientras compro --- */
-    borrador() {
-      const st = cargar();
-      if (!st.borrador) st.borrador = { estado: {}, cant: {} };
-      return st.borrador;
-    },
-    marcarItem(id, valor) {
-      const b = this.borrador();
-      if (valor) b.estado[id] = valor; else { delete b.estado[id]; delete b.cant[id]; }
-      guardar();
-    },
-    marcarVarios(ids, valor) {
-      const b = this.borrador();
-      ids.forEach(id => {
-        if (valor) b.estado[id] = valor; else { delete b.estado[id]; delete b.cant[id]; }
-      });
-      guardar();
-    },
-    setCantidad(id, n) {
-      const b = this.borrador();
-      if (n === null || n === undefined || n === '') delete b.cant[id];
-      else b.cant[id] = Number(n);
-      if (!b.estado[id]) b.estado[id] = 'ok';   // cargar una cantidad es haberlo comprado
-      guardar();
-    },
-    limpiarBorrador() {
-      cargar().borrador = { estado: {}, cant: {} };
-      guardar();
-    },
+/* Fotos propias de los platos. Se guardan como JPEG ya comprimido. */
+const Fotos = (() => {
+  const BASE = 'v2:fotos', ALMACEN = 'fotos';
+  const urls = {};
+  let db = null;
 
-    /* --- aceptar: lo marcado entra al inventario --- */
-    entradas: () => cargar().entradas,
-    agregarEntrada(items) {
-      if (!Object.keys(items).length) return;
-      cargar().entradas.push({ fecha: U.ymd(new Date()), items: Object.assign({}, items) });
-      guardar();
-    },
-    /* Lo que no conseguí es de la semana, porque es lo que cambia el plan. */
-    registrarNoConseguido(sem, ids) {
-      const st = cargar();
-      if (!ids.length) { delete st.compras[sem]; guardar(); return; }
-      const estado = {};
-      ids.forEach(id => { estado[id] = 'no'; });
-      st.compras[sem] = { fecha: U.ymd(new Date()), estado };
-      delete st.fijados[sem];
-      guardar();
-    },
-    /* Un cambio congela todo lo anterior y recalcula de ahí para adelante. */
-    cambiarPlato(sem, dia, comida, idPlato, anteriores) {
-      const fij = sub('fijados', sem, {});
-      anteriores.forEach(sl => { fij[sl.clave] = { plato: sl.plato.id, base: sl.base, guarnicion: sl.guarnicion.id }; });
-      sub('cambios', sem, {})[dia + ':' + comida] = idPlato;
-      guardar();
-    },
-    saltar(sem, dia, comida, valor) {
-      const lista = sub('saltados', sem, []);
-      const k = dia + ':' + comida;
-      const i = lista.indexOf(k);
-      if (valor && i < 0) lista.push(k);
-      if (!valor && i >= 0) lista.splice(i, 1);
-      guardar();
-    },
-    setVerdura(sem, dia, comida, gramos) {
-      sub('verdura', sem, {})[dia + ':' + comida] = gramos;
-      guardar();
-    },
+  function abrir() {
+    return new Promise((ok, mal) => {
+      if (db) return ok(db);
+      if (typeof indexedDB === 'undefined') return mal(new Error('sin IndexedDB'));
+      const r = indexedDB.open(BASE, 1);
+      const espera = setTimeout(() => mal(new Error('la base de fotos no responde')), 6000);
+      r.onupgradeneeded = () => r.result.createObjectStore(ALMACEN);
+      r.onsuccess = () => {
+        clearTimeout(espera);
+        db = r.result;
+        db.onversionchange = () => { db.close(); db = null; };
+        db.onclose = () => { db = null; };
+        ok(db);
+      };
+      r.onerror = () => { clearTimeout(espera); mal(r.error); };
+      r.onblocked = () => { clearTimeout(espera); mal(new Error('la base de fotos está ocupada')); };
+    });
+  }
 
-    unaVezHecho: (id) => cargar().unaVez.indexOf(id) >= 0,
-    marcarUnaVez(ids) {
-      const st = cargar();
-      ids.forEach(id => { if (st.unaVez.indexOf(id) < 0) st.unaVez.push(id); });
-      guardar();
-    },
-    reponerUnaVez(id) {
-      const st = cargar();
-      const i = st.unaVez.indexOf(id);
-      if (i >= 0) st.unaVez.splice(i, 1);
-      guardar();
-    },
+  function tx(modo, fn) {
+    return abrir().then(d => new Promise((ok, mal) => {
+      const t = d.transaction(ALMACEN, modo);
+      const res = fn(t.objectStore(ALMACEN));
+      t.oncomplete = () => ok(res && res.result);
+      t.onerror = () => mal(t.error);
+      t.onabort = () => mal(t.error);
+    }));
+  }
 
-    tildes: (lista) => cargar().tildes[lista] || {},
-    tildar(lista, item, valor) {
-      const t = sub('tildes', lista, {});
-      if (valor) t[item] = true; else delete t[item];
-      guardar();
-    },
-    limpiarTildes(lista) {
-      delete cargar().tildes[lista];
-      guardar();
-    },
+  /* Lee todas las fotos una vez al abrir y deja sus URLs listas. */
+  function cargar() {
+    return abrir().then(d => new Promise(ok => {
+      const st = d.transaction(ALMACEN, 'readonly').objectStore(ALMACEN);
+      const r = st.openCursor();
+      r.onsuccess = () => {
+        const c = r.result;
+        if (!c) return ok();
+        urls[c.key] = URL.createObjectURL(c.value);
+        c.continue();
+      };
+      r.onerror = () => ok();
+    })).catch(() => {});
+  }
 
-    borrarTodo() {
-      s = vacio();
-      guardar();
-    }
-  };
+  /* Achica a ~1200 px de lado mayor y pasa a JPEG 0.8. */
+  function comprimir(archivo) {
+    return new Promise((ok, mal) => {
+      const img = new Image();
+      const u = URL.createObjectURL(archivo);
+      img.onload = () => {
+        const MAX = 1200;
+        const f = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * f);
+        c.height = Math.round(img.naturalHeight * f);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(u);
+        c.toBlob(b => b ? ok(b) : mal(new Error('no se pudo comprimir')), 'image/jpeg', 0.8);
+      };
+      img.onerror = () => { URL.revokeObjectURL(u); mal(new Error('no es una imagen')); };
+      img.src = u;
+    });
+  }
+
+  function guardar(id, archivo) {
+    return comprimir(archivo).then(blob => tx('readwrite', st => st.put(blob, id)).then(() => {
+      if (urls[id]) URL.revokeObjectURL(urls[id]);
+      urls[id] = URL.createObjectURL(blob);
+    }));
+  }
+
+  function quitar(id) {
+    return tx('readwrite', st => st.delete(id)).then(() => {
+      if (urls[id]) URL.revokeObjectURL(urls[id]);
+      delete urls[id];
+    });
+  }
+
+  function borrarTodas() {
+    return tx('readwrite', st => st.clear()).then(() => {
+      Object.keys(urls).forEach(k => { URL.revokeObjectURL(urls[k]); delete urls[k]; });
+    });
+  }
+
+  return { cargar, guardar, quitar, borrarTodas, url: id => urls[id] || null, cuantas: () => Object.keys(urls).length };
 })();

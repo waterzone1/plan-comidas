@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Plan v1 (archivo)</title>
+<meta name="theme-color" content="#0b0d10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Plan">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="iconos/icono-180.png">
+<link rel="icon" href="iconos/icono-192.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<header class="cab">
+  <div class="cab-in">
+    <p class="kicker" id="cab-fecha"></p>
+    <h1 id="cab-titulo">Hoy</h1>
+    <a href="../" style="position:absolute;top:calc(env(safe-area-inset-top) + 14px);right:16px;font-size:12px;color:#8d97a5;text-decoration:none;border:1px solid #242b36;border-radius:999px;padding:5px 10px">App nueva →</a>
+  </div>
+</header>
+
+<main id="vista" class="vista"></main>
+
+<nav class="tabs" id="tabs">
+  <button class="tab activo" data-tab="hoy"><span class="ic">◐</span>Hoy</button>
+  <button class="tab" data-tab="proximos"><span class="ic">☰</span>Próximos</button>
+  <button class="tab" data-tab="inventario"><span class="ic">▣</span>Inventario</button>
+  <button class="tab" data-tab="compras"><span class="ic">✚</span>Compras</button>
+</nav>
+
+<div class="hoja oculta" id="hoja">
+  <div class="hoja-fondo" data-cerrar="1"></div>
+  <div class="hoja-panel" id="hoja-panel"></div>
+</div>
+
+<div class="aviso oculto" id="aviso"></div>
+
+<script src="datos/catalogo.js"></script>
+<script src="datos/porciones.js"></script>
+<script src="datos/ritmo.js"></script>
+<script src="datos/compras.js"></script>
+<script src="js/util.js"></script>
+<script src="js/estado.js"></script>
+<script src="js/generador.js"></script>
+<script src="js/inventario.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
