@@ -64,9 +64,17 @@ const Fotos = (() => {
       if (db) return ok(db);
       if (typeof indexedDB === 'undefined') return mal(new Error('sin IndexedDB'));
       const r = indexedDB.open(BASE, 1);
+      const espera = setTimeout(() => mal(new Error('la base de fotos no responde')), 6000);
       r.onupgradeneeded = () => r.result.createObjectStore(ALMACEN);
-      r.onsuccess = () => { db = r.result; ok(db); };
-      r.onerror = () => mal(r.error);
+      r.onsuccess = () => {
+        clearTimeout(espera);
+        db = r.result;
+        db.onversionchange = () => { db.close(); db = null; };
+        db.onclose = () => { db = null; };
+        ok(db);
+      };
+      r.onerror = () => { clearTimeout(espera); mal(r.error); };
+      r.onblocked = () => { clearTimeout(espera); mal(new Error('la base de fotos está ocupada')); };
     });
   }
 

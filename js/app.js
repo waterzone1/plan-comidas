@@ -331,7 +331,7 @@
       .concat(d.sd ? ['🧊 Sin descongelar'] : []);
     const filas = por.items.map(it => '<li><span class="rol">' + (it.id === 'huevo' ? '🥚' : ROL_IC[it.rol]) + '</span>' + esc(N.mayus(it.txt)) + '</li>')
       .concat(por.salsa.g ? ['<li><span class="rol">🥫</span>Salsa ' + esc(por.salsa.n.toLowerCase()) + ' <span class="tenue">≈ ' + por.salsa.g + ' g</span></li>'] : [])
-      .concat(por.aceite ? ['<li><span class="rol">🫒</span>' + esc(N.mayus(N.textoAceite(por.aceite))) + '</li>'] : []);
+      .concat(por.aceite ? ['<li><span class="rol">🥄</span>' + esc(N.mayus(N.textoAceite(por.aceite))) + '</li>'] : []);
 
     const maxV = N.MAX_VERDURAS - d.vf.length;
     const opciones =
@@ -359,7 +359,7 @@
       '<h3 class="sub">Para 1 persona <span class="tenue">cantidades aproximadas</span></h3><ul class="gramos">' + filas.join('') + '</ul>' +
       '<div class="variantes"><div class="bloque-cab"><h2>Cambiar la combinación</h2></div>' + opciones + '</div>' +
       '<div class="acciones">' +
-        '<button class="boton primario" data-a="receta">🧑‍🍳 Pedir receta a Claude</button>' +
+        '<button class="boton primario" data-a="receta">👨‍🍳 Pedir receta a Claude</button>' +
         '<button class="boton" data-a="compra-plato">🛒 Lista de compras de este plato</button>' +
         '<button class="boton" data-a="hecho">✅ Lo cociné' + (veces ? ' <span class="tenue">· ' + veces + (veces === 1 ? ' vez' : ' veces') + ', ' + hace(e.ultima[d.id]) + '</span>' : '') + '</button>' +
       '</div>' +
@@ -635,7 +635,7 @@
       const k = comboActual(); if (!k) return;
       const txt = N.promptReceta(k, E().modo, 1);
       const mostrar = ok => abrirHoja(
-        '<div class="hoja-cab"><h2>🧑‍🍳 Pedido de receta</h2><button class="cerrar" data-a="cerrar-hoja" aria-label="Cerrar">✕</button></div>' +
+        '<div class="hoja-cab"><h2>👨‍🍳 Pedido de receta</h2><button class="cerrar" data-a="cerrar-hoja" aria-label="Cerrar">✕</button></div>' +
         '<p class="' + (ok ? 'estado ok' : 'estado falta') + '">' + (ok ? '✅ Copiado. Pegalo en Claude.' : 'No pude copiarlo solo: mantené apretado el texto y copialo.') + '</p>' +
         '<textarea class="prompt" readonly>' + esc(txt) + '</textarea>' +
         '<div class="acciones"><button class="boton" data-a="copiar-prompt">📋 Copiar de nuevo</button>' +
