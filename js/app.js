@@ -62,6 +62,7 @@
     if (meta) meta.setAttribute('content', oscuro ? '#0e1014' : '#f6f2ea');
   }
 
+  const plural = (n, uno, muchos) => n + ' ' + (n === 1 ? uno : (muchos || uno + 's'));
   const hoy = () => N.ymd(new Date());
   const fechaLarga = () => new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
   function hace(fecha) {
@@ -210,6 +211,7 @@
 
   function vExplorar() {
     const f = filtrosCon(null), e = E();
+    const pocos = hayFiltros() && N.buscar(f, e).length <= 12;
     let total = 0;
     const grupos = PROTEINAS.map(p => {
       const estilos = ESTILOS.map(es => {
@@ -219,7 +221,7 @@
       const n = estilos.reduce((a, x) => a + x.ks.length, 0);
       total += n;
       if (!n) return '';
-      const abierto = ui.abiertos[p.id] ? ' open' : '';
+      const abierto = (ui.abiertos[p.id] || pocos) ? ' open' : '';
       return '<details class="grupo" data-g="' + p.id + '"' + abierto + '><summary><span class="punto" style="background:' + p.color + '"></span>' +
         '<b>' + p.ic + ' ' + esc(p.n) + '</b><span class="tenue">' + n + '</span></summary>' +
         estilos.map(x => '<h4 class="estilo">' + x.es.ic + ' ' + esc(x.es.n) + '</h4>' + listaTarjetas(x.ks)).join('') + '</details>';
@@ -247,7 +249,8 @@
       '<h3 class="sub">Verduras</h3>' + chipsDe(o.verd, ui.tengo, 'tengo') +
       '<h3 class="sub">Heladera y panes</h3>' + chipsDe(o.otros, ui.tengo, 'tengo') +
       (ui.tengo.length
-        ? '<div class="resultado"><div class="bloque-cab"><h2>Sale esto</h2><button class="link" data-a="tengo-limpiar">Empezar de nuevo</button></div>' +
+        ? '<a class="flotante" href="#/tengo" data-a="bajar"><b>' + res.length + '</b> ' + (res.length === 1 ? 'plato' : 'platos') + ' ↓</a>' +
+          '<div class="resultado"><div class="bloque-cab"><h2>Sale esto</h2><button class="link" data-a="tengo-limpiar">Empezar de nuevo</button></div>' +
           barraFiltros() +
           '<p class="cuenta"><b>' + ok + '</b> para hacer ya · <b>' + (res.length - ok) + '</b> con un faltante</p>' +
           (res.length ? '<div class="lista">' + res.map(r => tarjeta(r.k, pie(r))).join('') + '</div>'
@@ -307,7 +310,7 @@
       '<div class="resultado" id="armador-res"><div class="bloque-cab"><h2><span class="contador">' + ks.length + '</span> ' + (ks.length === 1 ? 'plato' : 'platos') + '</h2>' +
       (algo ? '<button class="link" data-a="armar-limpiar">Empezar de nuevo</button>' : '') + '</div>' +
       barraFiltros() + (ks.length ? listaTarjetas(ks) : nada('No queda ningún plato.', 'Sacá alguna elección.')) + '</div>' +
-      '<a class="flotante" href="#armador-res" data-a="bajar"><b>' + ks.length + '</b> ' + (ks.length === 1 ? 'plato' : 'platos') + ' ↓</a>';
+      '<a class="flotante" href="#/armador" data-a="bajar"><b>' + ks.length + '</b> ' + (ks.length === 1 ? 'plato' : 'platos') + ' ↓</a>';
   }
 
   /* ---------- ficha ---------- */
@@ -447,7 +450,7 @@
       seg('modo', [['bajar', 'Bajar'], ['mantener', 'Mantener'], ['subir', 'Subir']]) + '</section>' +
       '<section class="bloque"><div class="bloque-cab"><h2>Apariencia</h2></div>' + seg('tema', [['auto', 'Automática'], ['claro', 'Clara'], ['oscuro', 'Oscura']]) + '</section>' +
       '<section class="bloque"><div class="bloque-cab"><h2>Tus datos</h2></div>' +
-      '<p class="intro">Todo queda en este teléfono: ' + nFav + ' favoritos, ' + nHechos + ' platos cocinados y ' + Fotos.cuantas() + ' fotos.</p>' +
+      '<p class="intro">Todo queda en este teléfono: ' + plural(nFav, 'favorito') + ', ' + plural(nHechos, 'plato cocinado', 'platos cocinados') + ' y ' + plural(Fotos.cuantas(), 'foto') + '.</p>' +
       '<div class="acciones"><button class="boton" data-a="exportar">📤 Copiar una copia de seguridad</button>' +
       '<button class="boton" data-a="importar">📥 Restaurar una copia</button>' +
       '<button class="boton peligro" data-a="borrar-fotos">Borrar mis fotos</button>' +
@@ -593,7 +596,11 @@
       render(true);
     },
     'armar-limpiar': () => { ui.armador = { g: null, e: null, c: null, v: [], s: null }; render(true); window.scrollTo(0, 0); },
-    'bajar': (el, ev) => { ev.preventDefault(); const r = $('#armador-res'); if (r) r.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
+    'bajar': (el, ev) => {
+      ev.preventDefault();
+      const r = $('.resultado');
+      if (r) window.scrollTo({ top: r.getBoundingClientRect().top + window.scrollY - 76, behavior: 'smooth' });
+    },
 
     'cambiar': el => cambiarCombo(el.dataset.campo, el.dataset.id),
 
@@ -778,7 +785,7 @@
 
   /* El contador flotante del armador se esconde cuando la lista ya se ve. */
   function ajustarFlotante() {
-    const f = $('.flotante'), r = $('#armador-res');
+    const f = $('.flotante'), r = $('.resultado');
     if (f && r) f.classList.toggle('oculto', r.getBoundingClientRect().top < window.innerHeight - 140);
   }
   window.addEventListener('scroll', ajustarFlotante, { passive: true });
