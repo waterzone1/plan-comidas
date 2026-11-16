@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Galería de ilustraciones</title>
+<style>
+  body{margin:0;padding:16px;background:#0e1014;color:#ece9e2;font:14px -apple-system,"Segoe UI",sans-serif}
+  .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px}
+  figure{margin:0;text-align:center}
+  .c{border-radius:16px;overflow:hidden;aspect-ratio:1}
+  svg{display:block;width:100%;height:100%}
+  figcaption{margin-top:4px;color:#9aa3b0;font-size:12px}
+</style>
+</head>
+<body>
+<p>Las ilustraciones base, cada una con el color de una proteína distinta. Solo para revisarlas: no es parte de la app.</p>
+<div class="g" id="g"></div>
+<script src="../js/ilustraciones.js"></script>
+<script>
+  const colores = ['#E3A23A', '#C2533F', '#B36A43', '#D98A9A', '#5FA8C9', '#E58A6B', '#EE7F7A', '#E8C547', '#5B7FBF', '#8FAE5B'];
+  document.getElementById('g').innerHTML = ILUS.tipos.map((t, i) => {
+    const c = colores[i % colores.length];
+    return '<figure><div class="c" style="background:' + c + '33">' + ILUS.svg(t, c) + '</div><figcaption>' + t + '</figcaption></figure>';
+  }).join('');
+</script>
+</body>
+</html>

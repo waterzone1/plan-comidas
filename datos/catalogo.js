@@ -34,7 +34,7 @@ const PROTEINAS = [
   { id: 'camarones', n: 'Camarones',    ing: 'camarones', color: '#EE7F7A', ic: '🦐', sd: 1 },
   { id: 'huevo',     n: 'Huevo',        ing: 'huevo',     color: '#E8C547', ic: '🥚', sd: 1 },
   { id: 'atun',      n: 'Atún',         ing: 'atun',      color: '#5B7FBF', ic: '🥫', sd: 1 },
-  { id: 'legumbres', n: 'Legumbres',    ing: null,        color: '#8FAE5B', ic: '🫘' }
+  { id: 'legumbres', n: 'Legumbres',    ing: null,        color: '#8FAE5B', ic: '🌰' }
 ];
 
 const ESTILOS = [
