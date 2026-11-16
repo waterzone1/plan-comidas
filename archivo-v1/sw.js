@@ -7,7 +7,8 @@
    en la próxima apertura, sin tener que avisarle nada al service worker,
    y sin señal la app abre igual. */
 
-const VERSION = 'plan-v3';
+const PREFIJO = 'plan-v1-archivo-';
+const VERSION = PREFIJO + '1';
 const LIMITE = 1500;   // ms que se espera a la red antes de usar el caché
 
 const ARCHIVOS = [
@@ -46,7 +47,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k))))
+      .then(ks => Promise.all(ks.filter(k => k.startsWith(PREFIJO) && k !== VERSION).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

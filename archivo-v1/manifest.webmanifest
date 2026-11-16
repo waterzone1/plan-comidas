@@ -1,6 +1,6 @@
 {
-  "name": "Plan de comidas",
-  "short_name": "Plan",
+  "name": "Plan de comidas (v1, archivo)",
+  "short_name": "Plan v1",
   "description": "El plan de la semana, sábado a viernes.",
   "start_url": "./index.html",
   "scope": "./",
