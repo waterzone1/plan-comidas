@@ -108,16 +108,27 @@ async function main() {
       const ks = await caches.keys(); const c = await caches.open(ks.find(k => k.startsWith('quecomo-')) || 'x');
       return { estado: r.active.state, alcance: new URL(r.scope).pathname, controla: !!navigator.serviceWorker.controller, caches: ks, guardados: (await c.keys()).length };`);
     nota(sw.estado === 'activated' && sw.alcance === '/', 'service worker de la raíz activo (alcance ' + sw.alcance + ')');
-    nota(sw.guardados >= 19, 'guardó ' + sw.guardados + ' archivos para usar sin señal (' + sw.caches.join(', ') + ')');
+    nota(sw.guardados >= 20, 'guardó ' + sw.guardados + ' archivos para usar sin señal (' + sw.caches.join(', ') + ')');
 
-    const rutas = ['', 'express', 'siempre', 'tengo', 'antojo', 'armador', 'explorar', 'vianda', 'permitidos', 'compras', 'ajustes', 'plato/pollo-wok', 'plato/bolognesa%7Cnoquis%7Ccebolla%7Ctomate'];
+    const rutas = ['', 'express', 'siempre', 'tengo', 'antojo', 'armador', 'explorar', 'vianda', 'permitidos', 'compras', 'ajustes', 'plato/pollo-wok', 'plato/bolognesa%7Cnoquis%7Ccebolla%7Ctomate',
+      'plato/pollo-plancha-pasta', 'plato/atun-sandwich', 'desayuno', 'desayuno/revueltos', 'recomendaciones', 'recomendaciones/postre', 'receta/hummus', 'receta/r-pollo-naranja'];
     for (const r of rutas) {
       await js(`location.hash = '#/${r}'; await new Promise(x => setTimeout(x, 120)); return 1;`);
     }
     const pantallas = await js(`const out = {}; for (const r of ['express', 'explorar', 'vianda']) { location.hash = '#/' + r; await new Promise(x => setTimeout(x, 120)); out[r] = document.querySelectorAll('.plato').length; }
       location.hash = '#/'; await new Promise(x => setTimeout(x, 120)); out.modos = document.querySelectorAll('.modo-t').length; out.dia = document.querySelectorAll('.destacado').length; return out;`);
-    nota(pantallas.modos === 8 && pantallas.dia === 3, 'inicio: ' + pantallas.dia + ' platos del día y ' + pantallas.modos + ' modos');
+    nota(pantallas.modos === 10 && pantallas.dia === 3, 'inicio: ' + pantallas.dia + ' platos del día y ' + pantallas.modos + ' modos');
     nota(pantallas.express > 20 && pantallas.explorar > 80, 'listas: Express ' + pantallas.express + ', Explorar ' + pantallas.explorar + ', Vianda ' + pantallas.vianda);
+
+    const fijas = await js(`const out = {}; location.hash = '#/desayuno'; await new Promise(x => setTimeout(x, 120)); out.des = document.querySelectorAll('.plato').length;
+      location.hash = '#/recomendaciones'; await new Promise(x => setTimeout(x, 120)); out.reco = document.querySelectorAll('.plato').length;
+      location.hash = '#/receta/hummus'; await new Promise(x => setTimeout(x, 120)); out.pasos = document.querySelectorAll('.pasos li').length;
+      location.hash = '#/armador'; await new Promise(x => setTimeout(x, 120));
+      for (const [a, id] of [['armar-g', 'pollo'], ['armar-e', 'plancha'], ['armar-c', 'fideos']]) { document.querySelector('[data-a="' + a + '"][data-id="' + id + '"]').click(); await new Promise(x => setTimeout(x, 60)); }
+      out.verduras = ['morron', 'cebolla', 'champinon'].filter(v => !document.querySelector('[data-a="armar-v"][data-id="' + v + '"]').disabled).length;
+      document.querySelector('[data-a="armar-limpiar"]').click(); return out;`);
+    nota(fijas.des >= 10 && fijas.reco >= 30 && fijas.pasos >= 2, 'desayunos (' + fijas.des + ') y recomendaciones (' + fijas.reco + ' comidas) abren con sus pasos');
+    nota(fijas.verduras === 3, 'armador: pollo + plancha + fideos deja elegir morrón, cebolla y champiñones');
 
     const juego = await js(`location.hash = '#/permitidos'; await new Promise(x => setTimeout(x, 150));
       document.querySelector('[data-a="elegir-permitido"]').click(); await new Promise(x => setTimeout(x, 100));
@@ -144,7 +155,7 @@ async function main() {
     await cdp('Page.navigate', { url: base + 'index.html' });
     await esperar(2600);
     const sin = await js(`return { modos: document.querySelectorAll('.modo-t').length, dia: document.querySelectorAll('.destacado').length, svg: document.querySelectorAll('.destacado svg').length };`).catch(e => ({ error: e.message }));
-    nota(sin.modos === 8 && sin.dia === 3 && sin.svg === 3, 'con el servidor apagado la app nueva abre igual');
+    nota(sin.modos === 10 && sin.dia === 3 && sin.svg === 3, 'con el servidor apagado la app nueva abre igual');
     await cdp('Page.navigate', { url: base + 'archivo-v1/index.html' });
     await esperar(2600);
     const sinV1 = await js(`return { pestanas: document.querySelectorAll('.tab').length };`).catch(e => ({ error: e.message }));

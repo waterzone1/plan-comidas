@@ -14,8 +14,8 @@ function cargar(archivos, exportar) {
   return vm.runInContext('({' + exportar.join(',') + '})', ctx);
 }
 
-const DATOS = ['datos/ingredientes.js', 'datos/catalogo.js', 'datos/permitidos.js', 'js/nucleo.js'];
+const DATOS = ['datos/ingredientes.js', 'datos/catalogo.js', 'datos/permitidos.js', 'datos/recetario.js', 'js/nucleo.js'];
 const NOMBRES = ['N', 'INGREDIENTES', 'SALSAS', 'SECCIONES', 'PLATOS', 'PROTEINAS', 'ESTILOS',
-  'ANTOJOS', 'EQUIPOS', 'TRIOS', 'PERMITIDOS', 'PROHIBIDOS', 'REEMPLAZOS'];
+  'ANTOJOS', 'EQUIPOS', 'TRIOS', 'PERMITIDOS', 'PROHIBIDOS', 'REEMPLAZOS', 'COMPLEMENTOS', 'ALIM', 'DESAYUNOS', 'RECETAS', 'RECETA_CATS'];
 
 module.exports = { raiz, cargar, app: () => cargar(DATOS, NOMBRES) };

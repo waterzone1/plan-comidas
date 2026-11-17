@@ -9,7 +9,10 @@
    sec:   sección de la lista de compras
    al:    1 = está siempre en la alacena (no cuenta como faltante)
    u:     unidad natural (huevo, lata, tortilla) con su peso en gramos
-   lim:   mínimo y máximo de gramos que puede proponer la app
+   lim:   mínimo y máximo de gramos que puede proponer la app: lo que
+          entra en un plato de verdad (nunca 80 g de pollo ni 8 rebanadas
+          de pan). Si con eso no se llega al objetivo, la app propone
+          completar con algo de COMPLEMENTOS
    paso:  redondeo de los gramos
    --------------------------------------------------------------- */
 
@@ -24,20 +27,20 @@ const SECCIONES = [
 const INGREDIENTES = {
 
   /* ---------- proteínas (en crudo) ---------- */
-  pollo:      { t: 'prot', n: 'pechuga de pollo',                      kcal: 114, p: 23,   sec: 'polleria',   lim: [80, 300] },
-  carne:      { t: 'prot', n: 'carne magra (nalga, bola de lomo o cuadril)', kcal: 125, p: 21.5, sec: 'carniceria', lim: [80, 300] },
-  picada:     { t: 'prot', n: 'carne picada magra',                    kcal: 150, p: 20.5, sec: 'carniceria', lim: [80, 280] },
-  cerdo:      { t: 'prot', n: 'carré o solomillo de cerdo',            kcal: 140, p: 21.5, sec: 'carniceria', lim: [80, 300] },
-  merluza:    { t: 'prot', n: 'filet de merluza',                      kcal: 82,  p: 17.5, sec: 'pescaderia', lim: [100, 380] },
-  trucha:     { t: 'prot', n: 'filet de trucha',                       kcal: 141, p: 20,   sec: 'pescaderia', lim: [80, 300] },
-  camarones:  { t: 'prot', n: 'camarones pelados',                     kcal: 85,  p: 18,   sec: 'pescaderia', lim: [80, 340] },
-  huevo:      { t: 'prot', n: 'huevos',                                kcal: 143, p: 12.6, sec: 'almacen',    lim: [100, 250], paso: 50, u: { g: 50, s: 'huevo', pl: 'huevos' } },
-  atun:       { t: 'prot', n: 'atún al natural',                       kcal: 116, p: 25.5, sec: 'almacen',    lim: [60, 240],  paso: 30, u: { g: 120, s: 'lata', pl: 'latas', frac: 1 } },
-  mila_pollo: { t: 'prot', n: 'milanesas de pollo',                    kcal: 160, p: 18,   sec: 'polleria',   lim: [120, 360], paso: 60, u: { g: 120, s: 'milanesa', pl: 'milanesas' } },
-  mila_carne: { t: 'prot', n: 'milanesas de carne',                    kcal: 175, p: 18.5, sec: 'carniceria', lim: [120, 360], paso: 60, u: { g: 120, s: 'milanesa', pl: 'milanesas' } },
+  pollo:      { t: 'prot', n: 'pechuga de pollo',                      kcal: 114, p: 23,   sec: 'polleria',   lim: [120, 250] },
+  carne:      { t: 'prot', n: 'carne magra (nalga, bola de lomo o cuadril)', kcal: 125, p: 21.5, sec: 'carniceria', lim: [120, 220] },
+  picada:     { t: 'prot', n: 'carne picada magra',                    kcal: 150, p: 20.5, sec: 'carniceria', lim: [120, 220] },
+  cerdo:      { t: 'prot', n: 'carré o solomillo de cerdo',            kcal: 140, p: 21.5, sec: 'carniceria', lim: [120, 250] },
+  merluza:    { t: 'prot', n: 'filet de merluza',                      kcal: 82,  p: 17.5, sec: 'pescaderia', lim: [150, 300] },
+  trucha:     { t: 'prot', n: 'filet de trucha',                       kcal: 141, p: 20,   sec: 'pescaderia', lim: [120, 250] },
+  camarones:  { t: 'prot', n: 'camarones pelados',                     kcal: 85,  p: 18,   sec: 'pescaderia', lim: [120, 300] },
+  huevo:      { t: 'prot', n: 'huevos',                                kcal: 143, p: 12.6, sec: 'almacen',    lim: [100, 200], paso: 50, u: { g: 50, s: 'huevo', pl: 'huevos' } },
+  atun:       { t: 'prot', n: 'atún al natural',                       kcal: 116, p: 25.5, sec: 'almacen',    lim: [120, 180],  paso: 60, u: { g: 120, s: 'lata', pl: 'latas', frac: 1 } },
+  mila_pollo: { t: 'prot', n: 'milanesas de pollo',                    kcal: 160, p: 18,   sec: 'polleria',   lim: [120, 240], paso: 60, u: { g: 120, s: 'milanesa', pl: 'milanesas' } },
+  mila_carne: { t: 'prot', n: 'milanesas de carne',                    kcal: 175, p: 18.5, sec: 'carniceria', lim: [120, 240], paso: 60, u: { g: 120, s: 'milanesa', pl: 'milanesas' } },
 
   /* ---------- extras con proteína ---------- */
-  jamon:         { t: 'extra', n: 'jamón cocido magro',          kcal: 105, p: 18,  sec: 'almacen', lim: [40, 200] },
+  jamon:         { t: 'extra', n: 'jamón cocido magro',          kcal: 105, p: 18,  sec: 'almacen', magro: 1, lim: [40, 120] },
   mozzarella:    { t: 'extra', n: 'mozzarella o queso cremoso',  kcal: 280, p: 22,  sec: 'almacen' },
   ricota:        { t: 'extra', n: 'ricota magra',                kcal: 140, p: 11,  sec: 'almacen' },
   queso_rallado: { t: 'extra', n: 'queso rallado',               kcal: 390, p: 33,  sec: 'almacen', al: 1 },
@@ -50,25 +53,26 @@ const INGREDIENTES = {
      seco: factor para pasar a gramos en seco (lo que se compra y se hierve)
      min:  minutos que suma; olla: 1 si necesita un recipiente aparte
      tit:  cómo se escribe cuando encabeza el nombre del plato            */
-  arroz:        { t: 'carbo', n: 'arroz',            tit: 'Arroz',     kcal: 130, p: 2.7, med: 'cocido', seco: 0.36, min: 18, olla: 1, eq: 'hornalla',   lim: [60, 400],  sec: 'almacen', al: 1 },
-  fideos:       { t: 'carbo', n: 'fideos',           tit: 'Fideos',    kcal: 157, p: 5.8, med: 'cocido', seco: 0.45, min: 12, olla: 1, eq: 'hornalla',   lim: [60, 360],  sec: 'almacen', al: 1 },
-  noquis:       { t: 'carbo', n: 'ñoquis',           tit: 'Ñoquis',    kcal: 160, p: 4,   med: '',       min: 6,  olla: 1, eq: 'hornalla',   lim: [80, 400], sec: 'almacen', nc: 'ñoquis frescos' },
-  polenta:      { t: 'carbo', n: 'polenta',          tit: 'Polenta',   kcal: 72,  p: 1.7, med: 'cocida', seco: 0.2,  min: 5,  olla: 1, eq: 'hornalla',   lim: [100, 700], sec: 'almacen', al: 1, nc: 'polenta instantánea' },
-  cebada:       { t: 'carbo', n: 'cebada perlada',   tit: 'Cebada',    kcal: 123, p: 2.3, med: 'cocida', seco: 0.33, min: 30, olla: 1, eq: 'hornalla',   lim: [60, 420],  sec: 'almacen', al: 1 },
-  pure:         { t: 'carbo', n: 'puré',             tit: 'Puré',      kcal: 90,  p: 2,   med: 'listo',  seco: 0.19, min: 3,  olla: 0, eq: '',           lim: [80, 560], sec: 'almacen', al: 1, nc: 'puré instantáneo', secoN: 'de copos' },
-  papa_hervida: { t: 'carbo', n: 'papas hervidas',   tit: 'Papas',     kcal: 77,  p: 2,   med: 'crudo',  min: 20, olla: 1, eq: 'hornalla',   lim: [80, 620], sec: 'verduleria', ck: 'papa' },
-  papa_micro:   { t: 'carbo', n: 'papa al microondas', tit: 'Papa',    kcal: 77,  p: 2,   med: 'crudo',  min: 9,  olla: 0, eq: 'microondas', lim: [80, 620], sec: 'verduleria', ck: 'papa' },
-  papa_airfryer:{ t: 'carbo', n: 'papas en air fryer', tit: 'Papas',   kcal: 82,  p: 2,   med: 'crudo',  min: 20, olla: 0, eq: 'airfryer',   lim: [80, 600], sec: 'verduleria', ck: 'papa' },
-  papa_horno:   { t: 'carbo', n: 'papas al horno',   tit: 'Papas',     kcal: 82,  p: 2,   med: 'crudo',  min: 30, olla: 0, eq: 'horno',      lim: [80, 600], sec: 'verduleria', ck: 'papa' },
-  batata:       { t: 'carbo', n: 'batata asada',     tit: 'Batata',    kcal: 90,  p: 1.6, med: 'crudo',  min: 22, olla: 0, eq: 'airfryer',   lim: [80, 540], sec: 'verduleria' },
-  lentejas:     { t: 'carbo', n: 'lentejas',         tit: 'Lentejas',  kcal: 116, p: 9,   med: 'escurridas', min: 0, olla: 0, eq: '',        lim: [80, 460], sec: 'almacen', al: 1, u: { g: 230, s: 'lata', pl: 'latas' }, nc: 'lentejas en lata' },
-  garbanzos:    { t: 'carbo', n: 'garbanzos',        tit: 'Garbanzos', kcal: 135, p: 7.5, med: 'escurridos', min: 0, olla: 0, eq: '',        lim: [80, 460], sec: 'almacen', al: 1, u: { g: 230, s: 'lata', pl: 'latas' }, nc: 'garbanzos en lata' },
-  porotos:      { t: 'carbo', n: 'porotos',          tit: 'Porotos',   kcal: 130, p: 8.7, med: 'escurridos', min: 0, olla: 0, eq: '',        lim: [80, 460], sec: 'almacen', al: 1, u: { g: 230, s: 'lata', pl: 'latas' }, nc: 'porotos en lata' },
-  tortillas:    { t: 'carbo', n: 'tortillas de trigo', tit: 'Tortillas', kcal: 300, p: 8, med: '',       min: 0,  olla: 0, eq: '',           lim: [60, 240],  paso: 30, sec: 'almacen', u: { g: 30, s: 'tortilla', pl: 'tortillas' }, nc: 'tortillas de trigo (rapiditas)' },
-  pan:          { t: 'carbo', n: 'pan',              tit: 'Pan',       kcal: 270, p: 9,   med: '',       min: 0,  olla: 0, eq: '',           lim: [70, 210],  paso: 35, sec: 'almacen', u: { g: 70, s: 'pan', pl: 'panes' }, nc: 'pan de hamburguesa o figazza' },
-  pan_lactal:   { t: 'carbo', n: 'pan lactal',       tit: 'Tostadas',  kcal: 255, p: 8.5,  med: '',       min: 0,  olla: 0, eq: '',           lim: [28, 224],  paso: 28, sec: 'almacen', u: { g: 28, s: 'rebanada', pl: 'rebanadas' }, nc: 'pan lactal o integral' },
-  pan_arabe:    { t: 'carbo', n: 'pan árabe',        tit: 'Pan árabe', kcal: 265, p: 9,   med: '',       min: 0,  olla: 0, eq: '',           lim: [30, 240],  paso: 30, sec: 'almacen', u: { g: 60, s: 'pan árabe', pl: 'panes árabes' } },
-  tapa_tarta:   { t: 'carbo', n: 'masa de tarta',    tit: 'Tarta',     kcal: 300, p: 7,   med: '',       min: 0,  olla: 0, eq: '',           lim: [55, 220],  paso: 55, sec: 'almacen', u: { g: 220, s: 'tapa', pl: 'tapas', frac: 1 }, nc: 'tapa de tarta' },
+  arroz:        { t: 'carbo', n: 'arroz',            tit: 'Arroz',     kcal: 130, p: 2.7, med: 'cocido', seco: 0.36, min: 18, olla: 1, eq: 'hornalla',   lim: [80, 300],  sec: 'almacen', al: 1 },
+  fideos:       { t: 'carbo', n: 'fideos',           tit: 'Fideos',    kcal: 157, p: 5.8, med: 'cocidos', seco: 0.45, min: 12, olla: 1, eq: 'hornalla',   lim: [80, 300],  sec: 'almacen', al: 1 },
+  noquis:       { t: 'carbo', n: 'ñoquis',           tit: 'Ñoquis',    kcal: 160, p: 4,   med: '',       min: 6,  olla: 1, eq: 'hornalla',   lim: [100, 350], sec: 'almacen', nc: 'ñoquis frescos' },
+  polenta:      { t: 'carbo', n: 'polenta',          tit: 'Polenta',   kcal: 72,  p: 1.7, med: 'cocida', seco: 0.2,  min: 5,  olla: 1, eq: 'hornalla',   lim: [120, 450], sec: 'almacen', al: 1, nc: 'polenta instantánea' },
+  cebada:       { t: 'carbo', n: 'cebada perlada',   tit: 'Cebada',    kcal: 123, p: 2.3, med: 'cocida', seco: 0.33, min: 30, olla: 1, eq: 'hornalla',   lim: [80, 300],  sec: 'almacen', al: 1 },
+  pure:         { t: 'carbo', n: 'puré',             tit: 'Puré',      kcal: 90,  p: 2,   med: 'listo',  seco: 0.19, min: 3,  olla: 0, eq: '',           lim: [100, 400], sec: 'almacen', al: 1, nc: 'puré instantáneo', secoN: 'de copos' },
+  papa_hervida: { t: 'carbo', n: 'papas hervidas',   tit: 'Papas',     kcal: 77,  p: 2,   med: 'crudo',  min: 20, olla: 1, eq: 'hornalla',   lim: [100, 450], sec: 'verduleria', ck: 'papa' },
+  papa_micro:   { t: 'carbo', n: 'papa al microondas', tit: 'Papa',    kcal: 77,  p: 2,   med: 'crudo',  min: 9,  olla: 0, eq: 'microondas', lim: [100, 450], sec: 'verduleria', ck: 'papa' },
+  papa_airfryer:{ t: 'carbo', n: 'papas en air fryer', tit: 'Papas',   kcal: 82,  p: 2,   med: 'crudo',  min: 20, olla: 0, eq: 'airfryer',   lim: [100, 450], sec: 'verduleria', ck: 'papa' },
+  papa_horno:   { t: 'carbo', n: 'papas al horno',   tit: 'Papas',     kcal: 82,  p: 2,   med: 'crudo',  min: 30, olla: 0, eq: 'horno',      lim: [100, 450], sec: 'verduleria', ck: 'papa' },
+  batata:       { t: 'carbo', n: 'batata asada',     tit: 'Batata',    kcal: 90,  p: 1.6, med: 'crudo',  min: 22, olla: 0, eq: 'airfryer',   lim: [100, 400], sec: 'verduleria' },
+  lentejas:     { t: 'carbo', n: 'lentejas',         tit: 'Lentejas',  kcal: 116, p: 9,   med: 'escurridas', min: 0, olla: 0, eq: '',        lim: [100, 350], sec: 'almacen', al: 1, u: { g: 230, s: 'lata', pl: 'latas' }, nc: 'lentejas en lata' },
+  garbanzos:    { t: 'carbo', n: 'garbanzos',        tit: 'Garbanzos', kcal: 135, p: 7.5, med: 'escurridos', min: 0, olla: 0, eq: '',        lim: [100, 350], sec: 'almacen', al: 1, u: { g: 230, s: 'lata', pl: 'latas' }, nc: 'garbanzos en lata' },
+  porotos:      { t: 'carbo', n: 'porotos',          tit: 'Porotos',   kcal: 130, p: 8.7, med: 'escurridos', min: 0, olla: 0, eq: '',        lim: [100, 350], sec: 'almacen', al: 1, u: { g: 230, s: 'lata', pl: 'latas' }, nc: 'porotos en lata' },
+  tortillas:    { t: 'carbo', n: 'tortillas de trigo', tit: 'Tortillas', kcal: 300, p: 8, med: '',       min: 0,  olla: 0, eq: '',           lim: [60, 120],  paso: 30, sec: 'almacen', u: { g: 30, s: 'tortilla', pl: 'tortillas' }, nc: 'tortillas de trigo (rapiditas)' },
+  pan:          { t: 'carbo', n: 'pan',              tit: 'Pan',       kcal: 270, p: 9,   med: '',       min: 0,  olla: 0, eq: '',           lim: [70, 140],  paso: 70, sec: 'almacen', u: { g: 70, s: 'pan', pl: 'panes' }, nc: 'pan de hamburguesa o figazza' },
+  pan_lactal:   { t: 'carbo', n: 'pan lactal',       tit: 'Tostadas',  kcal: 255, p: 8.5,  med: '',       min: 0,  olla: 0, eq: '',           lim: [28, 112],  paso: 28, sec: 'almacen', u: { g: 28, s: 'rebanada', pl: 'rebanadas' }, nc: 'pan lactal o integral' },
+  pan_arabe:    { t: 'carbo', n: 'pan árabe',        tit: 'Pan árabe', kcal: 265, p: 9,   med: '',       min: 0,  olla: 0, eq: '',           lim: [60, 120],  paso: 30, sec: 'almacen', u: { g: 60, s: 'pan árabe', pl: 'panes árabes' } },
+  lasana:       { t: 'carbo', n: 'láminas de lasaña', tit: 'Lasaña',  kcal: 355, p: 12,  med: 'en seco', min: 0, olla: 0, eq: '',           lim: [40, 100], sec: 'almacen' },
+  tapa_tarta:   { t: 'carbo', n: 'masa de tarta',    tit: 'Tarta',     kcal: 300, p: 7,   med: '',       min: 0,  olla: 0, eq: '',           lim: [55, 110],  paso: 55, sec: 'almacen', u: { g: 220, s: 'tapa', pl: 'tapas', frac: 1 }, nc: 'tapa de tarta' },
 
   /* ---------- verduras (en crudo) ----------
      po: gramos típicos cuando es una de las tres verduras del plato
@@ -119,7 +123,9 @@ const INGREDIENTES = {
   manteca_mani:   { t: 'alac', n: 'manteca de maní',                sec: 'almacen', al: 1 },
   vinagre:        { t: 'alac', n: 'vinagre o aceto',                sec: 'almacen', al: 1 },
   ajo:            { t: 'alac', n: 'ajo',                            sec: 'verduleria', al: 1 },
-  limon:          { t: 'alac', n: 'limón',                          sec: 'verduleria', al: 1 }
+  limon:          { t: 'alac', n: 'limón',                          sec: 'verduleria', al: 1 },
+  naranja:        { t: 'alac', n: 'naranjas para jugo',             sec: 'verduleria' },
+  maicena:        { t: 'alac', n: 'maicena',                        sec: 'almacen', al: 1 }
 };
 
 /* ---------- salsas ----------
@@ -141,6 +147,7 @@ const SALSAS = {
   verdeo:      { n: 'Verdeo',        frag: 'al verdeo',            g: 60,  kcal: 170, p: 2.5, sal: 1, comp: ['crema', 'verdeo'] },
   queso_crema: { n: 'Queso crema',   frag: 'con queso crema',      g: 50,  kcal: 180, p: 8,   sal: 1, comp: ['queso_crema'] },
   pesto:       { n: 'Pesto',         frag: 'al pesto',             g: 20,  kcal: 450, p: 5,   sal: 1, comp: ['pesto'] },
+  naranja:     { n: 'Naranja',       frag: 'a la naranja',         g: 90,  kcal: 70,  p: 1.2, sal: 1, comp: ['naranja', 'salsa_soja', 'maicena', 'ajo'] },
   barbacoa:    { n: 'Barbacoa',      frag: 'a la barbacoa',        g: 30,  kcal: 170, p: 1,   sal: 1, comp: ['salsa_bbq'] },
   yogur:       { n: 'Yogur',         frag: 'con salsa de yogur',   g: 80,  kcal: 62,  p: 8,   sal: 1, comp: ['yogur', 'limon'] },
   criolla:     { n: 'Criolla',       frag: 'con salsa criolla',    g: 80,  kcal: 50,  p: 0.9, sal: 0, comp: ['tomate', 'cebolla', 'vinagre'] },
@@ -150,6 +157,19 @@ const SALSAS = {
   nada:        { n: 'Sin salsa',     frag: '',                     g: 0,   kcal: 0,   p: 0,   sal: 0, comp: [] },
   caldo:       { n: 'Caldo',         frag: '',                     g: 150, kcal: 5,   p: 0.5, sal: 0, comp: ['caldo'] }
 };
+
+/* Con qué se completa un plato que, con porciones normales, queda corto
+   para el objetivo. La app nunca infla el pan o el arroz para llegar:
+   propone sumar algo de esto al costado. kcal y p son por unidad. */
+const COMPLEMENTOS = [
+  { id: 'fruta',  n: '1 fruta',                        kcal: 80,  p: 1 },
+  { id: 'yogur',  n: '1 yogur natural sin azúcar',     kcal: 90,  p: 7 },
+  { id: 'nueces', n: '1 puñado de nueces o almendras', kcal: 130, p: 4 },
+  { id: 'huevo',  n: '1 huevo duro',                   kcal: 72,  p: 6 },
+  { id: 'queso',  n: '1 porción de queso (30 g)',      kcal: 85,  p: 7 },
+  { id: 'leche',  n: '1 vaso de leche descremada',     kcal: 90,  p: 8 },
+  { id: 'pan',    n: '1 rebanada de pan',              kcal: 70,  p: 2.4 }
+];
 
 /* Con qué se puede reemplazar lo que falta ("Tengo esto"). */
 const REEMPLAZOS = {

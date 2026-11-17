@@ -3,6 +3,21 @@
 La app nueva se llama **Qué como** y está en la raíz. La vieja quedó entera
 en `/archivo-v1/`. Se hicieron los cinco pasos, incluido el juego.
 
+## Novedades de la versión 2.1
+
+- **Porciones con sentido**: se terminaron los sándwiches de 8 rebanadas de
+  pan y los 80 g de pollo. Cada cosa tiene un tope de plato normal; si no se
+  llega al objetivo, la ficha dice con qué completar (fruta, yogur, frutos
+  secos). La carne ya no baja al pasar a Subir.
+- **Armador**: pollo + plancha + fideos ya deja elegir morrón, cebolla y
+  champiñones, y explica por qué algo queda en gris.
+- **Desayuno** (modo nuevo en el inicio): 13 básicos con sus pasos y
+  cantidades por objetivo.
+- **Recomendaciones** (sección nueva en el inicio): 105 recetas del
+  recetario, adaptadas a lo que no comés. 10 de ellas entraron además al
+  catálogo con gramos calculados (117 platos).
+- Detalle y motivos en `DECISIONES.md`, sección "Versión 2.1".
+
 ## Qué revisar primero al despertarte
 
 1. **Abrila en el iPhone** (la misma dirección de siempre). Si la tenías
@@ -17,8 +32,7 @@ en `/archivo-v1/`. Se hicieron los cinco pasos, incluido el juego.
    bien.
 4. **Los gramos de un par de platos que conozcas**, en los tres modos. Los
    números cierran contra los objetivos, pero vos sabés si la porción es
-   razonable. Ojo con Subir: sube mucho el carbohidrato y baja la carne
-   (está explicado en `DECISIONES.md`).
+   razonable. (En la 2.1 se corrigió que en Subir bajara la carne.)
 5. **Una partida del juego**, para ver si la dificultad se siente bien. Es
    lo único que no pude medir de verdad.
 
@@ -26,7 +40,7 @@ en `/archivo-v1/`. Se hicieron los cinco pasos, incluido el juego.
 
 - **Paso 0** — La v1 pasó a `/archivo-v1/` y sigue funcionando, con su
   service worker propio. Tus datos viejos no se tocaron.
-- **Datos** — 107 platos base (las 26 recetas viejas incluidas) con sus
+- **Datos** — 117 platos base (las 26 recetas viejas incluidas) con sus
   carbohidratos, verduras y salsas compatibles; tabla de nutrientes por
   100 g; validador.
 - **App** — inicio con plato del día, ocho formas de elegir, filtros
@@ -78,7 +92,8 @@ comí".
 ## Pruebas (todas pasan)
 
 ```bash
-node pruebas/validar.js     # 107 platos, 25.755 combinaciones dentro de ±15%
+node pruebas/validar.js     # 117 platos, ~28.000 combinaciones dentro de ±15% y con porciones normales
+node pruebas/porciones.js pollo-plancha   # los gramos de un plato en los tres objetivos
 node pruebas/simular.js     # la IA gana 28% en dificultad Normal
 node pruebas/offline.js     # los dos service workers no se pisan
 node pruebas/navegador.js   # sin errores de consola; abre sin señal

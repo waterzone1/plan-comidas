@@ -59,18 +59,15 @@ por mi cuenta, con el porqué, para que puedas revertir lo que no te cierre.
 
 - Cada combinación se resuelve sola: la app prueba gramos de proteína y de
   carbohidrato y se queda con los que más se acercan a 50 g de proteína y a
-  las kcal del modo (550 / 750 / 950).
+  las kcal del modo (550 / 750 / 950). Desde la 2.1 lo hace **dentro de
+  porciones normales** (ver "Versión 2.1" al final).
 - La verdura cambia con el modo (más en Bajar, menos en Subir), el aceite
   también (1 cucharadita / 1 cucharada / hasta 2), y los extras fijos (queso,
   jamón) van al 75% en Bajar.
-- **El validador revisa 25.755 combinaciones × modo y todas quedan dentro de
-  ±15%** en kcal y en proteína. Para lograrlo tuve que sacar algunas opciones
-  de algunos platos (por ejemplo, palta en las milanesas).
-- Un efecto que puede sorprender: en **Subir** la carne *baja* y el
-  carbohidrato sube mucho (ej. 140 g de pollo con 400 g de arroz cocido). Es
-  correcto: el objetivo de proteína es fijo y el arroz también aporta. Si
-  preferís que en Subir suba también la proteína, es cambiar un número
-  (`PROTEINA_OBJETIVO` por modo en `js/nucleo.js`).
+- **El validador revisa unas 28.000 combinaciones × modo y todas quedan
+  dentro de ±15%** en kcal, y nunca cortas de proteína. Para lograrlo tuve
+  que sacar algunas opciones de algunos platos (por ejemplo, palta en las
+  milanesas).
 - Proteínas y verduras se pesan **en crudo**; arroz, fideos, polenta y cebada
   **cocidos**, con el equivalente en seco al lado; la papa, en crudo.
 - Valores por 100 g: USDA FoodData Central y tablas argentinas, redondeados.
@@ -146,3 +143,84 @@ por mi cuenta, con el porqué, para que puedas revertir lo que no te cierre.
   comprueba consola limpia, service workers activos y uso sin señal. Lo
   agregué porque el navegador que yo uso para mirar la app no permite
   registrar service workers.
+
+## Versión 2.1
+
+### Porciones con sentido
+
+- **El problema**: para llegar a las calorías la app estiraba lo único que
+  podía estirar. Salían sándwiches de 8 rebanadas de pan, 80 g de pollo con
+  600 g de polenta, o una tarta entera para uno. Los números cerraban; los
+  platos no.
+- **Qué cambió**: cada ingrediente tiene ahora un mínimo y un máximo de lo
+  que entra en un plato de verdad (`lim` en `datos/ingredientes.js`): pollo
+  120–250 g, carne 120–220 g, arroz cocido hasta 300 g, papa hasta 450 g,
+  pan lactal hasta 4 rebanadas, tortillas 2 a 4, media tapa de tarta como
+  mucho. Un sándwich nunca lleva menos de dos rebanadas (`lc` en el plato).
+- **Si con eso no se llega al objetivo**, la app no infla nada: la ficha dice
+  con qué completar (una fruta, un yogur, un puñado de frutos secos). Pasa
+  casi solo en Subir (12% de las combinaciones), con platos livianos como
+  sándwiches, wraps y milanesas.
+- **La proteína nunca baja al subir de objetivo**: Mantener parte de los
+  gramos de Bajar y Subir de los de Mantener; lo que crece es la guarnición.
+  Pasarse un poco de 50 g de proteína no se castiga (quedan entre 50 y 65).
+- Los sándwiches y wraps llevan la mitad de aceite, y los fríos de atún,
+  nada: no tiene sentido "2 cucharadas de aceite" en un sándwich.
+- El validador ahora falla si alguna porción se sale de esos límites, y con
+  `-v` lista la porción más grande de cada cosa.
+
+### Armador
+
+- Elegir pollo + plancha + fideos dejaba en gris morrón, cebolla y
+  champiñones. Causa: el armador solo ofrece lo que combina con los platos
+  que quedan, y a los platos "a la plancha" yo les había cargado solo
+  verduras "de guarnición" (brócoli, chauchas, ensalada); lo salteado estaba
+  solo en los de wok y de salsa.
+- Arreglo: las verduras salteadas (morrón, cebolla, champiñones) ahora
+  también van al costado de cualquier plancha, y hay un plato nuevo, "Pollo
+  a la plancha con fideos" con salsa (tomate, crema, rosa, pesto, queso
+  crema). El armador explica que lo gris no combina con lo ya elegido.
+
+### Desayuno
+
+- 13 desayunos básicos (`DESAYUNOS` en `datos/recetario.js`), salados y
+  dulces, con sus pasos. No pasan por el cálculo de platos: tienen
+  cantidades fijas para cada objetivo (chica / media / grande), entre unas
+  250 y 550 kcal.
+- La estructura sale del plan de alimentación: una proteína (huevos, yogur,
+  leche) + un hidrato (pan, avena, granola) + fruta, y más hidrato los días
+  de más gasto.
+
+### Recomendaciones
+
+- 105 recetas puntuales tomadas del recetario de comidas saludables, con
+  ingredientes y pasos resumidos con mis palabras. No llevan gramos por
+  objetivo porque el recetario casi nunca da cantidades por porción.
+- **Adaptadas**: a las que llevaban algo que no comés se lo saqué (marcadas
+  "Adaptada"). No entraron las que dependían de eso: las de zanahoria
+  (pastel, torta, pizza, mayonesa, alfajores, galletas, pancake, smoothie y
+  licuado) y los garbanzos quedaron al pimentón dulce.
+- Junté las casi repetidas (seis budines de banana → tres; cuatro trufas →
+  tres) y saqué los polvos difíciles de conseguir (spirulina, moringa, maca)
+  dejando la receta base.
+- **Al catálogo, con gramos calculados, entraron 10 platos nuevos**: pollo a
+  la naranja, pollo oriental, pollo a la plancha con fideos, berenjenas
+  rellenas, papas rellenas de carne, lasaña de carne y espinaca, tarta de
+  zapallitos, tortilla de acelga y arroz, revuelto de huevo y verduras al
+  wok, y rollitos de zapallito con atún. Quedan 117. Las recetas de pura
+  verdura (pizza de coliflor, rollitos de berenjena) quedaron solo en
+  Recomendaciones: no llegan a 50 g de proteína sin cambiarlas.
+- En el repo no se nombra de dónde sale el recetario ni se guardó ningún
+  PDF: el repositorio es público.
+
+### Plan de alimentación
+
+- No se copió: es tuyo y tiene muchas cosas que no comés. Lo usé para tres
+  cosas: la estructura de los desayunos, los topes de porción (250 g de
+  pollo o cerdo, 200 g cocidos de arroz o fideos) y una equivalencia que
+  quedó escrita en Ajustes: **día sin entrenar ≈ Bajar, día con
+  entrenamiento ≈ Mantener** (sale de sumar las porciones del plan: unas 550
+  y unas 750 kcal por comida).
+- No hice: frutas como colación, "carne vacuna solo al mediodía y dos veces
+  por semana", ni menú semanal. La app no lleva registro del día ni
+  calendario, y eso lo pediste así.

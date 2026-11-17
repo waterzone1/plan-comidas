@@ -38,6 +38,8 @@ const N = (() => {
     o.ac = d.ac == null ? 1 : d.ac;
     o.vg = d.vg == null ? 1 : d.vg;
     o.rec = d.rec == null ? 1 : d.rec;
+    o.lim = {};
+    L(d.lc).forEach(x => { const [i, r] = x.split(':'); o.lim[i] = r.split('-').map(Number); });
     return o;
   }
 
@@ -146,7 +148,7 @@ const N = (() => {
       base += ' ' + frag;
     }
     const carboAdentro = base.includes('{C}');
-    const principal = base.replace('{C}', carbo.tit);
+    const principal = base.replace('{C}', base.indexOf('{C}') === 0 ? carbo.tit : carbo.tit.toLowerCase());
     if (!carboAdentro && d.cn) resto.push(carbo.n);
     k.v.forEach(v => resto.push(I[v].n));
     return { principal, resto };
@@ -193,10 +195,29 @@ const N = (() => {
 
   function factorVerduras(n) { return n <= 1 ? 1.8 : n === 2 ? 1.25 : n === 3 ? 1 : 0.85; }
 
+  /* La proteína nunca baja al subir de objetivo: lo que crece es la
+     guarnición. Por eso Mantener parte de los gramos de Bajar, y Subir
+     de los de Mantener. */
+  const ANTERIOR = { mantener: 'bajar', subir: 'mantener' };
+  const memo = new Map();
+
   function porciones(k, modoId) {
-    const m = MODOS[modoId] || MODOS.mantener, d = k.p;
+    const m = MODOS[modoId] || MODOS.mantener;
+    const key = clave(k) + '#' + m.id;
+    let por = memo.get(key);
+    if (!por) {
+      const previo = ANTERIOR[m.id] ? porciones(k, ANTERIOR[m.id]) : null;
+      por = resolver(k, m, previo ? previo.items[0].g : 0);
+      if (memo.size > 4000) memo.clear();
+      memo.set(key, por);
+    }
+    return por;
+  }
+
+  function resolver(k, m, minProteina) {
+    const d = k.p;
     const fijos = [];
-    d.fijos.forEach(f => fijos.push({ id: f.i, g: I[f.i].u ? f.g : r5(f.g * m.extras), rol: 'extra' }));
+    d.fijos.forEach(f => fijos.push({ id: f.i, g: (I[f.i].u || I[f.i].magro) ? f.g : r5(f.g * m.extras), rol: 'extra' }));
     const vs = d.vf.concat(k.v);
     const fv = factorVerduras(vs.length) * m.verd * d.vg;
     vs.forEach(v => fijos.push({ id: v, g: Math.min(r10(I[v].po * fv), I[v].tope || 999), rol: 'verdura' }));
@@ -207,16 +228,17 @@ const N = (() => {
     fijos.forEach(f => { kcal0 += f.g * I[f.id].kcal / 100; p0 += f.g * I[f.id].p / 100; });
 
     const ip = I[d.ing], ic = I[k.c];
+    const limP = d.lim[d.ing] || ip.lim, limC = d.lim[k.c] || ic.lim;
     const pasoP = ip.paso || 10, pasoC = ic.paso || 10;
     const aceites = Array.from(new Set(m.aceite.map(a => Math.round(a * d.ac))));
     let mejor = null;
     aceites.forEach((ac, n) => {
       const kcalAc = ac * I.aceite.kcal / 100;
-      for (let gp = ip.lim[0]; gp <= ip.lim[1]; gp += pasoP) {
-        for (let gc = ic.lim[0]; gc <= ic.lim[1]; gc += pasoC) {
+      for (let gp = Math.max(limP[0], minProteina); gp <= limP[1]; gp += pasoP) {
+        for (let gc = limC[0]; gc <= limC[1]; gc += pasoC) {
           const kc = kcal0 + kcalAc + gp * ip.kcal / 100 + gc * ic.kcal / 100;
           const pr = p0 + gp * ip.p / 100 + gc * ic.p / 100;
-          const e = Math.pow((kc - m.kcal) / m.kcal, 2) + Math.pow((pr - PROTEINA_OBJETIVO) / PROTEINA_OBJETIVO, 2) + n * 0.0004;
+          const e = error(kc, pr, m) + n * 0.002;
           if (!mejor || e < mejor.e) mejor = { e, gp, gc, kc, pr, ac };
         }
       }
@@ -227,13 +249,60 @@ const N = (() => {
       .concat(fijos.filter(f => f.rol === 'verdura'))
       .concat(fijos.filter(f => f.rol === 'extra'));
     items.forEach(it => { it.txt = textoItem(it); });
+    const extra = completar(mejor.kc, mejor.pr, m);
     return {
       items,
       salsa: { id: k.s, n: salsa.n, g: salsa.g },
       aceite,
       kcal: mejor.kc, p: mejor.pr,
+      completar: extra ? extra.items : [],
+      kcalTotal: mejor.kc + (extra ? extra.kcal : 0),
+      pTotal: mejor.pr + (extra ? extra.p : 0),
       kcalObjetivo: m.kcal, pObjetivo: PROTEINA_OBJETIVO
     };
+  }
+
+  /* Qué tan lejos queda del objetivo. Pasarse de proteína casi no
+     cuenta: lo que importa es no quedar corto. */
+  function error(kc, pr, m, sobra) {
+    const dp = (pr - PROTEINA_OBJETIVO) / PROTEINA_OBJETIVO;
+    return Math.pow((kc - m.kcal) / m.kcal, 2) + (dp < 0 ? 1 : (sobra == null ? 0.12 : sobra)) * dp * dp;
+  }
+
+  /* Si el plato, con porciones normales, queda más de un 10% corto,
+     elige hasta tres complementos (fruta, yogur, frutos secos…) que lo
+     acerquen al objetivo. Devuelve null si no hace falta nada. */
+  const COMBOS_COMPL = (() => {
+    const out = [], C = COMPLEMENTOS, n = C.length;
+    for (let a = 0; a < n; a++) {
+      out.push([C[a]]);
+      for (let b = a + 1; b < n; b++) {
+        out.push([C[a], C[b]]);
+        for (let c = b + 1; c < n; c++) out.push([C[a], C[b], C[c]]);
+      }
+    }
+    return out.map(items => ({
+      items,
+      kcal: items.reduce((s, x) => s + x.kcal, 0),
+      p: items.reduce((s, x) => s + x.p, 0)
+    }));
+  })();
+
+  function completar(kc, pr, m) {
+    if (kc >= m.kcal * 0.9 && pr >= PROTEINA_OBJETIVO * 0.9) return null;
+    const sobra = pr >= PROTEINA_OBJETIVO;
+    const puntos = (k2, p2, items) => error(k2, p2, m, 0) + items.length * 0.0015 +
+      (sobra ? 0.004 * (p2 - pr) : 0);
+    let mejor = null, e0 = puntos(kc, pr, []);
+    COMBOS_COMPL.forEach(x => {
+      const e = puntos(kc + x.kcal, pr + x.p, x.items);
+      if (e < e0) { e0 = e; mejor = x; }
+    });
+    return mejor;
+  }
+
+  function textoCompletar(por) {
+    return por.completar.length ? unir(por.completar.map(x => x.n)) : '';
   }
 
   const FRACC = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
@@ -280,7 +349,10 @@ const N = (() => {
   }
 
   function redondeados(por) {
-    return { kcal: Math.round(por.kcal / 10) * 10, p: Math.round(por.p) };
+    return {
+      kcal: Math.round(por.kcal / 10) * 10, p: Math.round(por.p),
+      kcalTotal: Math.round(por.kcalTotal / 10) * 10, pTotal: Math.round(por.pTotal)
+    };
   }
 
   /* ---------- filtros ---------- */
@@ -562,6 +634,49 @@ const N = (() => {
     return { filas, platos: base, origen };
   }
 
+  /* ---------- recetas fijas: desayunos y recomendaciones ---------- */
+
+  const INDICE_MODO = { bajar: 0, mantener: 1, subir: 2 };
+
+  const desayunos = DESAYUNOS.map(d => Object.assign({}, d, {
+    eq: L(d.eq),
+    items: L(d.items).map(x => {
+      const [id, q] = x.split(':');
+      const qs = q.split('/').map(Number);
+      return { id, q: qs.length === 1 ? [qs[0], qs[0], qs[0]] : qs };
+    })
+  }));
+  const desayunoPorId = {};
+  desayunos.forEach(d => { desayunoPorId[d.id] = d; });
+
+  function cantidad(q, a) {
+    const ent = Math.floor(q), fr = q - ent;
+    return (ent ? String(ent) : '') + (fr ? FRACC[fr] : '') + ' ' + (q > 1 ? a.n[1] : a.n[0]);
+  }
+
+  /* Lo que lleva un desayuno para un objetivo, con sus calorías. */
+  function porcionDesayuno(d, modoId) {
+    const i = INDICE_MODO[modoId] == null ? 1 : INDICE_MODO[modoId];
+    const items = [];
+    let kcal = 0, p = 0;
+    d.items.forEach(it => {
+      const q = it.q[i], a = ALIM[it.id];
+      if (!q) return;
+      kcal += q * a.kcal; p += q * a.p;
+      items.push({ id: it.id, q, txt: cantidad(q, a) });
+    });
+    return { items, kcal: Math.round(kcal / 10) * 10, p: Math.round(p) };
+  }
+
+  const recetas = RECETAS.map(r => Object.assign({}, r, { ing: r.ing.split(';').map(x => x.trim()).filter(Boolean) }));
+  const recetaPorId = {};
+  recetas.forEach(r => { recetaPorId[r.id] = r; });
+
+  function textoReceta(r) {
+    return [r.n, '', 'Ingredientes:'].concat(r.ing.map(x => '• ' + mayus(x)))
+      .concat(['', 'Pasos:']).concat(r.p.map((x, i) => (i + 1) + '. ' + x)).join('\n');
+  }
+
   /* ---------- pedido de receta ---------- */
 
   function promptReceta(k, modoId, personas) {
@@ -580,8 +695,9 @@ const N = (() => {
       'Ingredientes y cantidades' + (n === 1 ? '' : ' POR PERSONA') + ' (respetalas, son las de mi plan):',
       lineas.join('\n'),
       '',
-      'Objetivo del plato: unos ' + PROTEINA_OBJETIVO + ' g de proteína y unas ' + m.kcal + ' kcal' +
-        ' (con estas cantidades da ≈ ' + r.p + ' g y ≈ ' + r.kcal + ' kcal). No sumes ingredientes con calorías sin avisarme.',
+      'Con estas cantidades el plato da ≈ ' + r.p + ' g de proteína y ≈ ' + r.kcal + ' kcal' +
+        (por.completar.length ? ' (lo completo aparte con ' + textoCompletar(por) + ')' : '') +
+        '. No sumes ingredientes con calorías sin avisarme.',
       '',
       'Tengo hornalla, horno eléctrico, microondas y air fryer.' +
         (eq.length ? ' Para este plato pensaba usar: ' + unir(eq) + '.' : ' Este plato es frío: no hay que cocinar.'),
@@ -607,12 +723,13 @@ const N = (() => {
     comboBase, comboDe, valida, clave, desdeClave, variar,
     nombre, nombrePrincipal, acompanamiento, unir, mayus,
     tiempo, recipientes, equipo, esFrio, conSalsa, esExpress,
-    porciones, redondeados, textoAceite, enUnidades,
+    porciones, redondeados, textoAceite, textoCompletar, enUnidades,
     pasaPlato, pasaCombo, sugerir, buscar,
     armador, comboArmador,
     opcionesTengo, nombreCompra, tengo, claveCompra, enAlacena,
     platoDelDia, losDeSiempre, puntaje,
     comprasDeCombo, sumarCompras, porSeccion, deAlacena, textoCompras, listaSugerida,
-    promptReceta
+    promptReceta,
+    desayunos, desayunoPorId, porcionDesayuno, recetas, recetaPorId, textoReceta
   };
 })();
