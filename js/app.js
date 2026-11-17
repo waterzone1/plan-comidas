@@ -6,7 +6,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '2.0';
+  const VERSION = '2.1';
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -21,6 +21,7 @@
     tengo: [],
     antojos: [],
     armador: { g: null, e: null, c: null, v: [], s: null },
+    desayuno: { tipo: null, frio: false },
     abiertos: {},
     hoja: null,
     recienHecho: null,
@@ -183,6 +184,8 @@
     { r: 'armador',    ic: '🧰', n: 'Armador',         d: 'Elegí paso a paso' },
     { r: 'explorar',   ic: '📚', n: 'Explorar',        d: 'Todo el catálogo' },
     { r: 'vianda',     ic: '🍱', n: 'Vianda',          d: 'Rinden y viajan bien' },
+    { r: 'desayuno',   ic: '☕', n: 'Desayuno',        d: 'Básicos de 5 minutos' },
+    { r: 'recomendaciones', ic: '📖', n: 'Recomendaciones', d: 'Recetas puntuales del recetario' },
     { r: 'permitidos', ic: '🍕', n: 'Permitidos',      d: 'Fuera del plan: hay que ganárselos' }
   ];
 
@@ -301,7 +304,7 @@
     });
     const algo = sel.g || sel.e || sel.c || sel.v.length || sel.s;
     const ks = quedan.map(d => N.sugerir(d, f, e, N.comboArmador(d, sel))).filter(Boolean).sort(ordenes.gusto);
-    return '<p class="intro">Elegí en el orden que quieras. Abajo va quedando lo que cumple.</p>' +
+    return '<p class="intro">Elegí en el orden que quieras. Abajo va quedando lo que cumple. Lo que queda <b>en gris</b> no combina con lo que ya elegiste: sacá alguna elección y vuelve.</p>' +
       fila('Proteína', 'g', PROTEINAS.map(p => p.id), id => N.GRUPO[id].ic + ' ' + N.GRUPO[id].n, 1) +
       fila('Estilo', 'e', ESTILOS.map(x => x.id), id => N.ESTILO[id].ic + ' ' + N.ESTILO[id].n, 2) +
       fila('Carbohidrato', 'c', carbos, id => N.mayus(I[id].n), 3) +
@@ -357,6 +360,8 @@
       '<div class="macros"><div><b>≈ ' + r.kcal + '</b><span>kcal</span></div><div><b>≈ ' + r.p + ' g</b><span>proteína</span></div>' +
         '<div class="obj"><b>' + m.n + '</b><span>objetivo ' + m.kcal + ' kcal</span></div></div>' +
       '<h3 class="sub">Para 1 persona <span class="tenue">cantidades aproximadas</span></h3><ul class="gramos">' + filas.join('') + '</ul>' +
+      (por.completar.length ? '<div class="completar"><b>➕ Para llegar a tu objetivo</b>Con porciones normales este plato queda en ≈ ' + r.kcal + ' kcal. ' +
+        'Sumale ' + esc(N.textoCompletar(por)) + ' y quedás en ≈ ' + r.kcalTotal + ' kcal y ' + r.pTotal + ' g de proteína.</div>' : '') +
       '<div class="variantes"><div class="bloque-cab"><h2>Cambiar la combinación</h2></div>' + opciones + '</div>' +
       '<div class="acciones">' +
         '<button class="boton primario" data-a="receta">👨‍🍳 Pedir receta a Claude</button>' +
@@ -368,6 +373,102 @@
         '<button class="voto' + (voto < 0 ? ' on' : '') + '" data-a="voto" data-v="-1" aria-label="No me gustó">👎</button></div>' +
       (veces > 1 ? '<button class="link centro" data-a="deshacer-hecho">Restar una vez</button>' : '') +
       '</article>';
+  }
+
+  /* ---------- desayunos y recomendaciones (recetas fijas) ---------- */
+
+  const TINTE_DES = { salado: '#E8C547', dulce: '#E58A6B' };
+  const TINTE_CAT = { comida: '#7fb069', guarnicion: '#5fa8c9', desayuno: '#E8C547', postre: '#D98A9A', bebida: '#b08fd8' };
+  const TAMANO = { bajar: 'porción chica', mantener: 'porción media', subir: 'porción grande' };
+
+  function emo(ic, clase, tinte) {
+    return '<div class="img emo ' + clase + '" style="--tinte:' + tinte + '"><span>' + ic + '</span></div>';
+  }
+
+  function tarjetaFija(href, ic, tinte, titulo, sub, metas, fav) {
+    return '<a class="plato" href="' + href + '">' + emo(ic, 'mini', tinte) +
+      '<div class="plato-tx"><h3>' + esc(titulo) + '</h3><p class="acomp">' + esc(sub) + '</p>' +
+      '<p class="meta">' + metas.filter(Boolean).map(x => '<span>' + x + '</span>').join('') + '</p></div>' +
+      (fav ? '<div class="marcas"><span class="marca fav" title="Favorito">★</span></div>' : '') + '</a>';
+  }
+
+  const primeroFavoritos = prefijo => (a, b) => (E().favoritos[prefijo + b.id] ? 1 : 0) - (E().favoritos[prefijo + a.id] ? 1 : 0);
+
+  function heroFija(ic, tinte, clave) {
+    const fav = !!E().favoritos[clave];
+    return '<div class="hero">' + emo(ic, 'hero-emo', tinte) +
+      '<button class="hero-b fav' + (fav ? ' on' : '') + '" data-a="fav-fija" data-id="' + esc(clave) + '" aria-label="Favorito">' + (fav ? '★' : '☆') + '</button></div>';
+  }
+
+  const pasos = ps => '<h3 class="sub">Cómo se hace</h3><ol class="pasos">' + ps.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>';
+
+  function vDesayuno(arg) {
+    if (arg) return vDesayunoFicha(arg);
+    const f = ui.desayuno, e = E();
+    const lista = N.desayunos.filter(d => (!f.tipo || d.tipo === f.tipo) && (!f.frio || !d.eq.length)).sort(primeroFavoritos('d:'));
+    const chip = (on, a, id, n) => '<button class="chip' + (on ? ' on' : '') + '" data-a="' + a + '" data-id="' + id + '">' + n + '</button>';
+    return '<p class="intro">Básicos que salen en minutos. Las cantidades cambian con el objetivo de arriba. Van con una infusión sin azúcar.</p>' +
+      '<div class="filtros" id="filtros">' + chip(f.tipo === 'salado', 'des-tipo', 'salado', '🍳 Salado') +
+        chip(f.tipo === 'dulce', 'des-tipo', 'dulce', '🍌 Dulce') + chip(f.frio, 'des-frio', '', '❄️ Sin cocinar') + '</div>' +
+      '<p class="cuenta"><b>' + lista.length + '</b> ' + (lista.length === 1 ? 'desayuno' : 'desayunos') + '</p>' +
+      (lista.length ? '<div class="lista">' + lista.map(d => {
+        const por = N.porcionDesayuno(d, e.modo);
+        return tarjetaFija('#/desayuno/' + d.id, d.ic, TINTE_DES[d.tipo], d.n, por.items.map(x => x.txt).join(' · '),
+          ['⏱ ' + d.min + '′', '≈ ' + por.kcal + ' kcal', por.p + ' g prot'], e.favoritos['d:' + d.id]);
+      }).join('') + '</div>' : nada('Ninguno cumple eso.', 'Sacá algún filtro.')) +
+      '<div class="acciones"><a class="boton" href="#/recomendaciones/desayuno">📖 Más desayunos y meriendas del recetario</a></div>';
+  }
+
+  function vDesayunoFicha(id) {
+    const d = N.desayunoPorId[id];
+    if (!d) return nada('No encontré ese desayuno.', '<a href="#/desayuno">Ver los desayunos</a>');
+    const e = E(), por = N.porcionDesayuno(d, e.modo), m = N.MODOS[e.modo], tinte = TINTE_DES[d.tipo];
+    const pildoras = ['⏱ ' + d.min + ' min'].concat(d.eq.length ? d.eq.map(x => EQUIPOS[x].ic + ' ' + EQUIPOS[x].n) : ['❄️ Sin cocinar']);
+    return '<article class="ficha">' + heroFija(d.ic, tinte, 'd:' + d.id) +
+      '<span class="kicker" style="color:' + tinte + '">Desayuno · ' + (d.tipo === 'salado' ? 'salado' : 'dulce') + '</span>' +
+      '<h2 class="nombre">' + esc(d.n) + '</h2>' +
+      '<div class="pildoras">' + pildoras.map(p => '<span>' + p + '</span>').join('') + '</div>' +
+      '<div class="macros"><div><b>≈ ' + por.kcal + '</b><span>kcal</span></div><div><b>≈ ' + por.p + ' g</b><span>proteína</span></div>' +
+        '<div class="obj"><b>' + m.n + '</b><span>' + TAMANO[m.id] + '</span></div></div>' +
+      '<h3 class="sub">Para 1 persona <span class="tenue">cantidades aproximadas</span></h3><ul class="gramos">' +
+        por.items.map(x => '<li>' + esc(N.mayus(x.txt)) + '</li>').join('') + '<li class="tenue">Infusión sin azúcar: mate, té o café</li></ul>' +
+      pasos(d.p) + '</article>';
+  }
+
+  function vRecomendaciones(arg) {
+    const cat = RECETA_CATS.some(c => c.id === arg) ? arg : RECETA_CATS[0].id, e = E();
+    const lista = N.recetas.filter(r => r.cat === cat).sort(primeroFavoritos('r:'));
+    return '<p class="intro">Recetas puntuales, tomadas de un recetario de comidas saludables y adaptadas: <b>sin lo que no comés</b>. ' +
+      'No llevan gramos por objetivo; cuando el catálogo tiene la versión calculada, la ficha te lleva.</p>' +
+      '<div class="filtros" id="filtros">' + RECETA_CATS.map(c =>
+        '<button class="chip' + (c.id === cat ? ' on' : '') + '" data-a="reco-cat" data-id="' + c.id + '">' + c.ic + ' ' + esc(c.n) + '</button>').join('') + '</div>' +
+      '<p class="cuenta"><b>' + lista.length + '</b> recetas</p>' +
+      '<div class="lista">' + lista.map(r => tarjetaFija('#/receta/' + r.id, r.ic, TINTE_CAT[r.cat], r.n, r.ing.slice(0, 4).join(', '),
+        [r.t ? '⏱ ≈ ' + r.t + '′' : '', r.rinde ? 'Rinde ' + esc(r.rinde) : '', r.plato ? '⚖️ con versión en gramos' : ''], e.favoritos['r:' + r.id])).join('') + '</div>';
+  }
+
+  function vReceta(id) {
+    const r = N.recetaPorId[id];
+    if (!r) return nada('No encontré esa receta.', '<a href="#/recomendaciones">Ver las recomendaciones</a>');
+    const e = E(), cat = RECETA_CATS.find(c => c.id === r.cat), tinte = TINTE_CAT[r.cat];
+    const pildoras = (r.t ? ['⏱ ≈ ' + r.t + ' min'] : []).concat(r.rinde ? ['🍽️ Rinde ' + esc(r.rinde)] : [])
+      .concat(r.ad ? ['✂️ Adaptada: sin lo que no comés'] : []);
+    let version = '';
+    if (r.plato) {
+      const d = N.porId[r.plato];
+      const k = (e.combos[d.id] && N.desdeClave(e.combos[d.id])) || N.comboBase(d);
+      const rd = N.redondeados(N.porciones(k, e.modo));
+      version = '<a class="plan" href="' + enlace(k) + '"><span class="plan-t">Con gramos para tu objetivo</span>' +
+        '<p><b>' + esc(N.nombrePrincipal(k)) + '</b> · ≈ ' + rd.kcal + ' kcal · ' + rd.p + ' g prot →</p>' +
+        '<p class="tenue chico">La versión del catálogo: cantidades calculadas, variantes y lista de compras.</p></a>';
+    }
+    return '<article class="ficha">' + heroFija(r.ic, tinte, 'r:' + r.id) +
+      '<span class="kicker" style="color:' + tinte + '">Recomendación · ' + esc(cat.n.toLowerCase()) + '</span>' +
+      '<h2 class="nombre">' + esc(r.n) + '</h2>' +
+      (pildoras.length ? '<div class="pildoras">' + pildoras.map(p => '<span>' + p + '</span>').join('') + '</div>' : '') + version +
+      '<h3 class="sub">Ingredientes</h3><ul class="gramos">' + r.ing.map(x => '<li>' + esc(N.mayus(x)) + '</li>').join('') + '</ul>' +
+      pasos(r.p) +
+      '<div class="acciones"><button class="boton" data-a="copiar-receta" data-id="' + r.id + '">📋 Copiar la receta</button></div></article>';
   }
 
   /* ---------- compras ---------- */
@@ -446,7 +547,9 @@
       '<button class="' + (e[campo] === o[0] ? 'on' : '') + '" data-a="ajuste" data-campo="' + campo + '" data-v="' + o[0] + '">' + o[1] + '</button>').join('') + '</div>';
     const nFav = Object.keys(e.favoritos).length, nHechos = Object.values(e.hechos).reduce((a, b) => a + b, 0);
     return '<section class="bloque"><div class="bloque-cab"><h2>Objetivo</h2></div>' +
-      '<p class="intro">Cada plato apunta a unos ' + N.PROTEINA_OBJETIVO + ' g de proteína. Las calorías dependen del objetivo: Bajar ≈ ' + N.MODOS.bajar.kcal + ', Mantener ≈ ' + N.MODOS.mantener.kcal + ', Subir ≈ ' + N.MODOS.subir.kcal + '.</p>' +
+      '<p class="intro">Cada plato apunta a unos ' + N.PROTEINA_OBJETIVO + ' g de proteína o un poco más. Las calorías dependen del objetivo: Bajar ≈ ' + N.MODOS.bajar.kcal + ', Mantener ≈ ' + N.MODOS.mantener.kcal + ', Subir ≈ ' + N.MODOS.subir.kcal + '.</p>' +
+      '<p class="intro">Las porciones son siempre las de un plato normal. Si con eso no se llega, la ficha te dice con qué completarlo (una fruta, un yogur, frutos secos) en vez de inflar el pan o el arroz.</p>' +
+      '<p class="intro">Si seguís un plan con días con y sin entrenamiento: sin entrenar equivale más o menos a <b>Bajar</b>, y con entrenamiento a <b>Mantener</b>.</p>' +
       seg('modo', [['bajar', 'Bajar'], ['mantener', 'Mantener'], ['subir', 'Subir']]) + '</section>' +
       '<section class="bloque"><div class="bloque-cab"><h2>Apariencia</h2></div>' + seg('tema', [['auto', 'Automática'], ['claro', 'Clara'], ['oscuro', 'Oscura']]) + '</section>' +
       '<section class="bloque"><div class="bloque-cab"><h2>Tus datos</h2></div>' +
@@ -456,7 +559,7 @@
       '<button class="boton peligro" data-a="borrar-fotos">Borrar mis fotos</button>' +
       '<button class="boton peligro" data-a="borrar-todo">Borrar favoritos, votos y listas</button></div></section>' +
       '<section class="bloque"><div class="bloque-cab"><h2>Sobre la app</h2></div>' +
-      '<p class="intro">' + N.platos.length + ' platos base. Las cantidades y las calorías son aproximadas (±10%): salen de tablas de nutrientes por 100 g (USDA y tablas argentinas), con la proteína pesada en crudo.</p>' +
+      '<p class="intro">' + N.platos.length + ' platos base, ' + N.desayunos.length + ' desayunos y ' + N.recetas.length + ' recomendaciones. Las cantidades y las calorías son aproximadas (±10%): salen de tablas de nutrientes por 100 g (USDA y tablas argentinas), con la proteína pesada en crudo.</p>' +
       '<p class="intro">Nunca aparece zanahoria, picante, cilantro, romero ni especias fuertes.</p>' +
       '<div class="acciones"><a class="boton" href="archivo-v1/">🗄️ Abrir la app vieja (plan semanal)</a></div>' +
       '<p class="tenue chico centro" id="sello">Versión ' + VERSION + '</p></section>';
@@ -476,7 +579,10 @@
     permitidos: { t: 'Permitidos', tab: 'permitidos', v: vPermitidos },
     compras:    { t: 'Compras', tab: 'compras', v: vCompras },
     ajustes:    { t: 'Ajustes', tab: 'ajustes', v: vAjustes },
-    plato:      { t: 'Plato', v: vPlato }
+    plato:      { t: 'Plato', v: vPlato },
+    desayuno:   { t: 'Desayuno', v: vDesayuno },
+    recomendaciones: { t: 'Recomendaciones', v: vRecomendaciones },
+    receta:     { t: 'Receta', v: vReceta }
   };
 
   let ruta = { nombre: '', arg: '' }, rutaPrevia = null;
@@ -600,6 +706,20 @@
       ev.preventDefault();
       const r = $('.resultado');
       if (r) window.scrollTo({ top: r.getBoundingClientRect().top + window.scrollY - 76, behavior: 'smooth' });
+    },
+
+    'des-tipo': el => { ui.desayuno.tipo = ui.desayuno.tipo === el.dataset.id ? null : el.dataset.id; render(true); },
+    'des-frio': () => { ui.desayuno.frio = !ui.desayuno.frio; render(true); },
+    'reco-cat': el => { location.replace('#/recomendaciones/' + el.dataset.id); },
+    'fav-fija': el => {
+      const id = el.dataset.id;
+      Estado.cambiar(e => { if (e.favoritos[id]) delete e.favoritos[id]; else e.favoritos[id] = true; });
+      aviso(E().favoritos[id] ? 'Guardado en favoritos' : 'Fuera de favoritos');
+      render(true);
+    },
+    'copiar-receta': el => {
+      const r = N.recetaPorId[el.dataset.id];
+      if (r) copiar(N.textoReceta(r)).then(() => aviso('Receta copiada'), () => aviso('No se pudo copiar'));
     },
 
     'cambiar': el => cambiarCombo(el.dataset.campo, el.dataset.id),

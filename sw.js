@@ -10,7 +10,7 @@
    propios (los "quecomo-") y el que había dejado la v1 en la raíz. */
 
 const PREFIJO = 'quecomo-';
-const VERSION = PREFIJO + 'v2-1';
+const VERSION = PREFIJO + 'v2-2';
 const LIMITE = 1500;
 
 const ARCHIVOS = [
@@ -21,6 +21,7 @@ const ARCHIVOS = [
   './datos/ingredientes.js',
   './datos/catalogo.js',
   './datos/permitidos.js',
+  './datos/recetario.js',
   './js/nucleo.js',
   './js/ilustraciones.js',
   './js/estado.js',

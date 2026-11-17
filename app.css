@@ -111,6 +111,10 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .img.mini{width:76px;height:76px;border-radius:14px}
 .img.ancha{width:100%;aspect-ratio:16/10}
 .img.hero-img{width:100%;aspect-ratio:4/3;border-radius:20px}
+.img.emo{display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--tinte,var(--acento)) 22%,var(--sup2))}
+.img.emo span{font-size:36px;line-height:1}
+.img.hero-emo{width:100%;aspect-ratio:16/7;border-radius:20px}
+.img.hero-emo span{font-size:84px}
 
 /* ---------- plato del día ---------- */
 .carrusel{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -16px;padding:2px 16px 8px;scrollbar-width:none}
@@ -137,6 +141,7 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .modo-t .tenue,.antojo .tenue{font-size:13px;line-height:1.3}
 .m-express{--tinte:#f2c14e}.m-siempre{--tinte:#e6a955}.m-tengo{--tinte:#7fb069}.m-antojo{--tinte:#e58a6b}
 .m-armador{--tinte:#5fa8c9}.m-explorar{--tinte:#b08fd8}.m-vianda{--tinte:#8fae5b}.m-permitidos{--tinte:#e07a5f}
+.m-desayuno{--tinte:#e8c547}.m-recomendaciones{--tinte:#d98a9a}
 .m-permitidos{border-style:dashed}
 .antojo{min-height:96px}
 .antojo.on{border-color:var(--acento);background:var(--acento-suave);box-shadow:inset 0 0 0 1px var(--acento)}
@@ -207,6 +212,14 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .gramos li{display:flex;gap:10px;align-items:baseline;padding:11px 14px;font-size:15.5px;line-height:1.35}
 .gramos li+li{border-top:1px solid var(--linea)}
 .rol{flex:none;width:22px;text-align:center}
+.completar{margin-top:10px;background:var(--acento-suave);border-radius:14px;padding:11px 13px;font-size:14.5px;line-height:1.4}
+.completar b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--acento);margin-bottom:3px}
+.pasos{list-style:decimal;background:var(--sup);border:1px solid var(--linea);border-radius:var(--r);padding:4px 14px 4px 38px;margin:0}
+.pasos li{padding:10px 0 10px 2px;font-size:15.5px;line-height:1.45}
+.pasos li+li{border-top:1px solid var(--linea)}
+.pasos li::marker{color:var(--acento);font-weight:700}
+.gramos li.tenue{font-size:14.5px}
+.ficha .plan{margin:2px 0 4px}
 .variantes{margin-top:24px}
 .variantes .bloque-cab{margin-bottom:0}
 .acciones{display:flex;flex-direction:column;gap:9px;margin-top:20px}

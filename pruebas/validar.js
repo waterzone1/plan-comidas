@@ -2,14 +2,16 @@
 
    - nada prohibido (zanahoria, picante, cilantro, romero, especias fuertes)
    - cada plato con sus referencias bien y al menos una combinación válida
-   - macros de cada combinación dentro de ±15% del objetivo, en los tres modos
+   - porciones con sentido (dentro de los límites de cada ingrediente) y
+     macros dentro de ±15% del objetivo contando el complemento, en los tres modos
    - todo lo que se compra tiene sección
    - las 26 recetas de la app vieja siguen estando
+   - desayunos y recomendaciones completos y sin nada prohibido
    Sale con código 1 si algo falla. */
 
 const { app } = require('./cargar');
 const A = app();
-const { N, INGREDIENTES: I, SALSAS, SECCIONES, PLATOS, PROTEINAS, ESTILOS, ANTOJOS, EQUIPOS, TRIOS, PERMITIDOS, PROHIBIDOS } = A;
+const { N, INGREDIENTES: I, SALSAS, SECCIONES, PLATOS, PROTEINAS, ESTILOS, ANTOJOS, EQUIPOS, TRIOS, PERMITIDOS, PROHIBIDOS, ALIM, DESAYUNOS, RECETAS, RECETA_CATS } = A;
 
 const verboso = process.argv.includes('-v');
 const errores = [];
@@ -31,6 +33,9 @@ revisarTexto('salsas', SALSAS);
 revisarTexto('platos', PLATOS);
 revisarTexto('tríos', TRIOS);
 PERMITIDOS.forEach(p => revisarTexto('permitidos (versión dentro del plan)', p.plan));
+revisarTexto('desayunos', DESAYUNOS);
+revisarTexto('alimentos de desayuno', ALIM);
+revisarTexto('recomendaciones', RECETAS);
 
 /* ---------- 2. referencias ---------- */
 const secciones = new Set(SECCIONES.map(s => s.id));
@@ -93,10 +98,16 @@ N.platos.forEach(d => {
   }));
 });
 
-/* ---------- 4. macros ---------- */
-const TOL = 0.15;
+/* ---------- 4. macros y porciones con sentido ----------
+   El plato solo nunca se pasa de calorías; con el complemento que
+   propone la app (fruta, yogur, frutos secos…) queda dentro de ±15%,
+   y de proteína nunca queda corto. Los gramos de cada cosa están
+   siempre dentro de lo que entra en un plato de verdad (lim). */
+const TOL = 0.15, MAX_PROT = 0.45;
 let combos = 0, fuera = 0;
 const peores = [];
+const conCompl = { bajar: 0, mantener: 0, subir: 0 }, porModo = { bajar: 0, mantener: 0, subir: 0 };
+const maximos = {};
 N.platos.forEach(d => {
   d.c.forEach(c => d.s.forEach(s => {
     const variantes = [d.vd].concat(d.v.map(v => [v]));
@@ -106,11 +117,19 @@ N.platos.forEach(d => {
       if (!N.valida(k)) return;
       Object.keys(N.MODOS).forEach(m => {
         const por = N.porciones(k, m);
-        const dk = por.kcal / por.kcalObjetivo - 1, dp = por.p / por.pObjetivo - 1;
-        combos++;
-        if (Math.abs(dk) > TOL || Math.abs(dp) > TOL) {
+        const dk = por.kcalTotal / por.kcalObjetivo - 1, dp = por.pTotal / por.pObjetivo - 1, dpSolo = por.p / por.pObjetivo - 1;
+        const solo = por.kcal / por.kcalObjetivo - 1;
+        combos++; porModo[m]++;
+        if (por.completar.length) conCompl[m]++;
+        por.items.forEach(it => {
+          if (it.rol !== 'proteina' && it.rol !== 'carbo') return;
+          const lim = d.lim[it.id] || I[it.id].lim;
+          if (it.g < lim[0] || it.g > lim[1]) err('Porción fuera de lo normal: ' + it.g + ' g de ' + it.id + ' en ' + d.id);
+          if (!maximos[it.id] || it.g > maximos[it.id].g) maximos[it.id] = { g: it.g, d: d.id, m };
+        });
+        if (Math.abs(dk) > TOL || dp < -TOL || dpSolo > MAX_PROT || solo > TOL) {
           fuera++;
-          peores.push({ e: Math.max(Math.abs(dk), Math.abs(dp)), t: d.id + ' [' + c + ' / ' + s + ' / ' + (k.v.join('+') || '-') + '] ' + m + ': ' + Math.round(por.kcal) + ' kcal (' + pct(dk) + '), ' + Math.round(por.p) + ' g prot (' + pct(dp) + ')' });
+          peores.push({ e: Math.max(Math.abs(dk), Math.abs(dp)), t: d.id + ' [' + c + ' / ' + s + ' / ' + (k.v.join('+') || '-') + '] ' + m + ': ' + Math.round(por.kcal) + '→' + Math.round(por.kcalTotal) + ' kcal (' + pct(dk) + '), ' + Math.round(por.p) + '→' + Math.round(por.pTotal) + ' g prot (' + pct(dp) + ')' });
         }
       });
     });
@@ -123,7 +142,7 @@ if (fuera) {
   peores.forEach(x => { const id = x.t.split(' ')[0] + ' ' + x.t.split('] ')[1].split(':')[0]; (porPlato[id] = porPlato[id] || []).push(x.t); });
   console.log('\nFuera de rango, por plato y modo:');
   Object.keys(porPlato).sort().forEach(id => console.log('  ' + String(porPlato[id].length).padStart(4) + '  ' + porPlato[id][0]));
-  err(fuera + ' de ' + combos + ' combinaciones fuera de ±15%:\n   ' + peores.slice(0, verboso ? 400 : 25).map(x => x.t).join('\n   '));
+  err(fuera + ' de ' + combos + ' combinaciones fuera de rango:\n   ' + peores.slice(0, verboso ? 400 : 25).map(x => x.t).join('\n   '));
 }
 
 /* ---------- 5. recetas de la app vieja ---------- */
@@ -149,6 +168,41 @@ PERMITIDOS.forEach(p => {
   } else if (!p.plan.texto) err('Permitido ' + p.id + ': sin versión dentro del plan');
 });
 
+/* ---------- 7b. desayunos y recomendaciones ---------- */
+const RANGO_DESAYUNO = { bajar: [200, 450], mantener: [280, 600], subir: [380, 760] };
+const idsFijos = new Set();
+N.desayunos.forEach(d => {
+  const w = m => err('Desayuno ' + d.id + ': ' + m);
+  if (idsFijos.has(d.id)) w('id repetido');
+  idsFijos.add(d.id);
+  if (d.tipo !== 'salado' && d.tipo !== 'dulce') w('tipo mal');
+  if (!(d.min > 0) || !d.ic || !d.p || !d.p.length) w('incompleto');
+  d.eq.forEach(e => { if (!EQUIPOS[e]) w('equipo desconocido ' + e); });
+  d.items.forEach(it => {
+    if (!ALIM[it.id]) w('alimento desconocido ' + it.id);
+    if (it.q.length !== 3 || it.q.some(q => !(q >= 0) || (q * 4) % 1)) w('cantidades mal en ' + it.id);
+  });
+  let previa = 0;
+  Object.keys(RANGO_DESAYUNO).forEach(m => {
+    const por = N.porcionDesayuno(d, m), r = RANGO_DESAYUNO[m];
+    if (por.kcal < r[0] || por.kcal > r[1]) w(m + ' queda en ' + por.kcal + ' kcal (tiene que estar entre ' + r[0] + ' y ' + r[1] + ')');
+    if (por.kcal < previa) w('en ' + m + ' tiene menos calorías que en el objetivo anterior');
+    if (por.p < 10) w(m + ' tiene solo ' + por.p + ' g de proteína');
+    previa = por.kcal;
+  });
+});
+if (N.desayunos.length < 8) err('Hay menos de 8 desayunos');
+const cats = new Set(RECETA_CATS.map(c => c.id));
+N.recetas.forEach(r => {
+  const w = m => err('Recomendación ' + r.id + ': ' + m);
+  if (idsFijos.has(r.id) || N.porId[r.id]) w('id repetido (con un desayuno, un plato u otra receta)');
+  idsFijos.add(r.id);
+  if (!cats.has(r.cat)) w('categoría desconocida ' + r.cat);
+  if (!r.n || !r.ic || !r.ing.length || !r.p || !r.p.length) w('incompleta');
+  if (r.plato && !N.porId[r.plato]) w('plato del catálogo desconocido ' + r.plato);
+});
+RECETA_CATS.forEach(c => { if (!N.recetas.some(r => r.cat === c.id)) err('Categoría de recomendaciones vacía: ' + c.id); });
+
 /* ---------- 8. plato del día ---------- */
 let previo = [];
 const f0 = new Date('2026-11-16T12:00:00');
@@ -171,16 +225,19 @@ N.platos.forEach(d => {
   filas.forEach(x => { if (!secciones.has(x.sec)) err('Compra sin sección: ' + x.id + ' (' + d.id + ')'); });
   if (!N.porSeccion(filas).length && !N.deAlacena(filas).length) err('Lista de compras vacía: ' + d.id);
   const pr = N.promptReceta(k, 'bajar');
-  if (!/zanahoria/.test(pr) || !/50 g de proteína/.test(pr)) err('Pedido de receta incompleto: ' + d.id);
+  if (!/zanahoria/.test(pr) || !/g de proteína y ≈ \d+ kcal/.test(pr)) err('Pedido de receta incompleto: ' + d.id);
 });
 
 /* ---------- informe ---------- */
 const cuenta = f => N.buscar(f).length;
 const linea = (a, b) => console.log('  ' + String(a).padEnd(34) + b);
-console.log('\nCatálogo: ' + PLATOS.length + ' platos base, ' + combos + ' combinaciones×modo revisadas\n');
+console.log('\nCatálogo: ' + PLATOS.length + ' platos base, ' + combos + ' combinaciones×modo revisadas');
+console.log('Recetario: ' + N.desayunos.length + ' desayunos y ' + N.recetas.length + ' recomendaciones (' + RECETA_CATS.map(c => N.recetas.filter(r => r.cat === c.id).length + ' ' + c.n.toLowerCase()).join(', ') + ')\n');
 PROTEINAS.forEach(p => linea(p.n, N.platos.filter(d => d.g === p.id).length));
 console.log('');
 ESTILOS.forEach(e => linea(e.n, N.platos.filter(d => d.e === e.id).length));
+console.log('');
+Object.keys(conCompl).forEach(m => linea('Se completa aparte en ' + m, Math.round(conCompl[m] / porModo[m] * 100) + '% de las combinaciones'));
 console.log('');
 linea('Express (≤15 min, 1 recipiente)', cuenta({ express: true }));
 linea('Los de siempre', N.platos.filter(d => d.top).length);
@@ -196,6 +253,8 @@ linea('Microondas', cuenta({ eq: ['microondas'] }));
 ANTOJOS.forEach(a => linea('Antojo: ' + a.n, cuenta({ tags: [a.id] })));
 
 if (verboso) {
+  console.log('\nLa porción más grande de cada cosa:');
+  Object.keys(maximos).sort().forEach(id => console.log('  ' + id.padEnd(16) + String(maximos[id].g).padStart(4) + ' g   ' + maximos[id].d + ' (' + maximos[id].m + ')'));
   console.log('\nNombres por defecto y macros (bajar / mantener / subir):');
   N.platos.forEach(d => {
     const k = N.comboBase(d);

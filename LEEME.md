@@ -59,7 +59,9 @@ node pruebas/validar.js
 ```
 
 Avisa si aparece algo prohibido, si falta una sección de compra o si alguna
-combinación queda a más de ±15% de los objetivos de proteína y calorías.
+combinación queda a más de ±15% de las calorías, corta de proteína, o con
+alguna porción fuera de lo normal. Los desayunos y las recomendaciones
+(recetas fijas, sin combinaciones) están en `datos/recetario.js`.
 
 ## Tocar el balance del juego
 
